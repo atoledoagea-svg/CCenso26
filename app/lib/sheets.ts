@@ -69,7 +69,7 @@ export async function getUserPermissions(accessToken: string, userEmail: string)
           return []
         }
         // Parsear IDs separados por comas y limpiar espacios
-        return idsString.split(',').map(id => id.trim()).filter(id => id.length > 0)
+        return idsString.split(',').map((id: string) => id.trim()).filter((id: string) => id.length > 0)
       }
     }
     
