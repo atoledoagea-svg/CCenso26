@@ -218,7 +218,7 @@ export async function getAllPermissions(accessToken: string): Promise<Array<{ em
       const idsString = rows[i][1] || ''
       
       if (email) {
-        const allowedIds = idsString.split(',').map(id => id.trim()).filter(id => id.length > 0)
+        const allowedIds = idsString.split(',').map((id: string) => id.trim()).filter((id: string) => id.length > 0)
         permissions.push({
           email: String(email),
           allowedIds,
