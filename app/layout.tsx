@@ -2,8 +2,8 @@ import type { Metadata } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'Clarin Censo 2026',
-  description: 'Clarin Censo 2026',
+  title: 'Clarín - Relevamiento de PDV',
+  description: 'Clarín - Relevamiento de PDV',
 }
 
 export default function RootLayout({

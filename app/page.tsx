@@ -428,7 +428,7 @@ export default function Home() {
               />
             </div>
             <h1>Bienvenido a</h1>
-            <h2>Censo 2026</h2>
+            <h2>Relevamiento de PDV</h2>
             <p>
               Accede con tu cuenta de Google para consultar y gestionar los datos del censo de manera segura.
             </p>
@@ -741,7 +741,7 @@ export default function Home() {
             height={35}
             priority
           />
-          <h1>Censo 2026</h1>
+          <h1>Relevamiento de PDV</h1>
         </div>
         <div className="header-right">
           {sheetData?.permissions?.isAdmin && (
