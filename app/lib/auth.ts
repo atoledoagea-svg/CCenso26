@@ -1,7 +1,8 @@
 import { google } from 'googleapis'
 
 const ADMIN_EMAILS = [
-  'atoledo.agea@gmail.com'
+  'atoledo.agea@gmail.com',
+  'lmiranda.maslogistica@gmail.com'
 ]
 
 /**

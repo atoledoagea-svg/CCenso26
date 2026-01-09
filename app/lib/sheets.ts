@@ -14,17 +14,22 @@ export function getSheetsClient(accessToken: string) {
 }
 
 /**
- * Obtiene el nombre de la primera hoja disponible
+ * Obtiene el nombre de la primera hoja del spreadsheet
  */
 export async function getFirstSheetName(accessToken: string): Promise<string> {
   const sheets = getSheetsClient(accessToken)
-
+  
   const response = await sheets.spreadsheets.get({
     spreadsheetId: SPREADSHEET_ID,
+    fields: 'sheets.properties.title',
   })
-
-  const sheetsInfo = response.data.sheets || []
-  return sheetsInfo[0]?.properties?.title || 'Sheet1'
+  
+  const sheetsList = response.data.sheets
+  if (sheetsList && sheetsList.length > 0 && sheetsList[0].properties?.title) {
+    return sheetsList[0].properties.title
+  }
+  
+  return 'Sheet1' // Default fallback
 }
 
 /**
@@ -32,13 +37,10 @@ export async function getFirstSheetName(accessToken: string): Promise<string> {
  */
 export async function getAllData(accessToken: string) {
   const sheets = getSheetsClient(accessToken)
-
-  // Obtener el nombre correcto de la hoja
-  const sheetName = await getFirstSheetName(accessToken)
-
+  
   const response = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
-    range: `${sheetName}!A:AM`, // Rango de columnas A a AM con nombre de hoja
+    range: 'A:AM', // Rango de columnas A a AM
   })
 
   return response.data.values || []
