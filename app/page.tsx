@@ -430,7 +430,7 @@ export default function Home() {
             <h1>Bienvenido a</h1>
             <h2>Relevamiento de PDV</h2>
             <p>
-              Accede con tu cuenta de Google para consultar y gestionar los datos del censo de manera segura.
+              Accede con tu cuenta de Google para consultar y gestionar los datos del relevamiento de manera segura.
             </p>
           </div>
           

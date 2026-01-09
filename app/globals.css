@@ -145,6 +145,8 @@ body {
   opacity: 0.9;
   max-width: 350px;
   line-height: 1.6;
+  text-align: center;
+  margin: 0 auto;
 }
 
 .logo-wrapper {
@@ -153,11 +155,13 @@ body {
   padding: 1rem 2rem;
   border-radius: 12px;
   box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+  display: inline-block;
 }
 
 .logo-wrapper img {
   height: 50px;
   width: auto;
+  display: block;
 }
 
 .login-right {
@@ -1481,6 +1485,8 @@ body {
   .welcome-content p {
     font-size: 0.85rem;
     max-width: 280px;
+    text-align: center;
+    margin: 0 auto;
   }
   
   .logo-wrapper {
