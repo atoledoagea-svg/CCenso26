@@ -55,6 +55,9 @@ export default function Home() {
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 50
+  
+  // Puesto Abierto/Cerrado state
+  const [puestoStatus, setPuestoStatus] = useState<'abierto' | 'cerrado' | ''>('')
 
   const CLIENT_ID = '549677208908-9h6q933go4ss870pbq8gd8gaae75k338.apps.googleusercontent.com'
   const API_KEY = 'AIzaSyCJUD23abF8LcZPp7e8eiK0D5IfFoRCxUc'
@@ -203,12 +206,17 @@ export default function Home() {
     if (sheetData) {
       setEditingRow(rowIndex)
       setEditedValues([...sheetData.data[rowIndex]])
+      setPuestoStatus('abierto')
     }
   }
 
   const handleCancelEdit = () => {
-    setEditingRow(null)
-    setEditedValues([])
+    const confirmCancel = window.confirm('¿Estás seguro de que deseas cancelar? Los cambios no guardados se perderán.')
+    if (confirmCancel) {
+      setEditingRow(null)
+      setEditedValues([])
+      setPuestoStatus('')
+    }
   }
 
   // Find column indexes for auto-fill fields
@@ -230,8 +238,59 @@ export default function Home() {
     return { fechaIndex, relevadorIndex }
   }
 
+  // Campos que se auto-rellenan cuando el puesto está cerrado
+  const getCamposCerradoIndexes = () => {
+    if (!sheetData) return []
+    
+    const headers = sheetData.headers.map(h => h.toLowerCase().trim())
+    const camposCerrado: number[] = []
+    
+    headers.forEach((h, idx) => {
+      if (
+        (h.includes('estado') && h.includes('kiosco')) ||
+        h.includes('dias de atención') || h.includes('dias de atencion') || h === 'dias de atención' || h === 'dias de atencion' ||
+        h === 'horario' || h === 'horario:' ||
+        h === 'escaparate' || h === 'escaparate:' ||
+        h === 'ubicacion' || h === 'ubicación' || h === 'ubicacion:' || h === 'ubicación:' ||
+        (h.includes('fachada') && h.includes('puesto')) ||
+        (h.includes('venta') && h.includes('no editorial')) ||
+        h === 'reparto' || h === 'reparto:' ||
+        h === 'suscripciones' || h === 'suscripciones:' || h === 'suscripcion' || h === 'suscripción' ||
+        h === 'nombre' || h === 'nombre:' ||
+        h === 'apellido' || h === 'apellido:' ||
+        (h.includes('mayor') && h.includes('venta')) ||
+        (h.includes('parada') && h.includes('online')) ||
+        h === 'teléfono' || h === 'telefono' || h === 'teléfono:' || h === 'telefono:' ||
+        h === 'correo electrónico' || h === 'correo electronico' || h === 'correo electrónico:' || h === 'correo electronico:' || h === 'email' || h === 'email:'
+      ) {
+        camposCerrado.push(idx)
+      }
+    })
+    
+    return camposCerrado
+  }
+
+  // Manejar cambio de estado del puesto
+  const handlePuestoStatusChange = (status: 'abierto' | 'cerrado') => {
+    setPuestoStatus(status)
+    
+    if (status === 'cerrado') {
+      const camposCerradoIndexes = getCamposCerradoIndexes()
+      const newValues = [...editedValues]
+      
+      camposCerradoIndexes.forEach(idx => {
+        newValues[idx] = 'Puesto Cerrado'
+      })
+      
+      setEditedValues(newValues)
+    }
+  }
+
   const handleSaveRow = async () => {
     if (!accessToken || editingRow === null || !sheetData || !userEmail) return
+    
+    const confirmSave = window.confirm('¿Estás seguro de que deseas guardar los cambios?')
+    if (!confirmSave) return
     
     setSaving(true)
     try {
@@ -499,6 +558,33 @@ export default function Home() {
                 <button className="modal-close" onClick={handleCancelEdit}>×</button>
               </div>
               <div className="modal-body">
+                {/* Selector de Puesto Abierto/Cerrado */}
+                <div className="puesto-status-selector">
+                  <label>¿El puesto está abierto o cerrado?</label>
+                  <div className="puesto-status-buttons">
+                    <button
+                      type="button"
+                      className={`puesto-btn puesto-btn-abierto ${puestoStatus === 'abierto' ? 'active' : ''}`}
+                      onClick={() => handlePuestoStatusChange('abierto')}
+                    >
+                      ✓ Puesto Abierto
+                    </button>
+                    <button
+                      type="button"
+                      className={`puesto-btn puesto-btn-cerrado ${puestoStatus === 'cerrado' ? 'active' : ''}`}
+                      onClick={() => handlePuestoStatusChange('cerrado')}
+                    >
+                      ✗ Puesto Cerrado
+                    </button>
+                  </div>
+                  {puestoStatus === 'cerrado' && (
+                    <div className="puesto-cerrado-notice">
+                      <span className="notice-icon">⚠️</span>
+                      <span>Los campos relevantes se han rellenado automáticamente con "Puesto Cerrado".</span>
+                    </div>
+                  )}
+                </div>
+
                 <div className="auto-fill-notice">
                   <span className="notice-icon">ℹ️</span>
                   <span>Al guardar, se registrará automáticamente la fecha ({today}) y tu email como relevador.</span>
@@ -509,6 +595,136 @@ export default function Home() {
                     const isFechaField = idx === fechaIndex
                     const isRelevadorField = idx === relevadorIndex
                     const isAutoField = isFechaField || isRelevadorField
+                    
+                    // Detectar si es el campo Estado Kiosco
+                    const headerLower = header.toLowerCase().trim()
+                    const isEstadoKioscoField = headerLower.includes('estado') && headerLower.includes('kiosco')
+                    
+                    // Detectar si es el campo Horario
+                    const isHorarioField = headerLower === 'horario' || headerLower === 'horario:'
+                    
+                    // Detectar si es el campo Escaparate
+                    const isEscaparateField = headerLower === 'escaparate' || headerLower === 'escaparate:'
+                    
+                    // Detectar si es el campo Ubicación
+                    const isUbicacionField = headerLower === 'ubicacion' || headerLower === 'ubicación' || headerLower === 'ubicacion:' || headerLower === 'ubicación:'
+                    
+                    // Detectar si es el campo Fachada de puesto
+                    const isFachadaField = headerLower.includes('fachada') && headerLower.includes('puesto')
+                    
+                    // Detectar si es el campo Venta de productos no editoriales
+                    const isVentaNoEditorialField = headerLower.includes('venta') && headerLower.includes('no editorial')
+                    
+                    // Detectar si es el campo Reparto
+                    const isRepartoField = headerLower === 'reparto' || headerLower === 'reparto:'
+                    
+                    const estadoKioscoOptions = [
+                      'Abierto',
+                      'Cerrado ahora',
+                      'Abre ocasionalmente',
+                      'Cerrado definitivamente',
+                      'Zona Peligrosa',
+                      'No se encuentra el puesto'
+                    ]
+                    
+                    const horarioOptions = [
+                      'Mañana',
+                      'Mañana y Tarde',
+                      'Tarde',
+                      'Solo reparto/Susc.',
+                      'Puesto Cerrado',
+                      'Cerrado Definitivamente',
+                      'Zona Peligrosa',
+                      'No se encuentra el puesto'
+                    ]
+                    
+                    const escaparateOptions = [
+                      'Chico',
+                      'Mediano',
+                      'Grande',
+                      'Puesto Cerrado',
+                      'Cerrado Definitivamente',
+                      'Zona Peligrosa',
+                      'No se encuentra el puesto'
+                    ]
+                    
+                    const ubicacionOptions = [
+                      'Avenida',
+                      'Barrio',
+                      'Estación Subte/Tren',
+                      'Puesto Cerrado',
+                      'Cerrado Definitivamente',
+                      'Zona Peligrosa',
+                      'No se encuentra el puesto'
+                    ]
+                    
+                    const fachadaOptions = [
+                      'Malo',
+                      'Regular',
+                      'Bueno',
+                      'Cerrado Definitivamente',
+                      'Zona Peligrosa',
+                      'No se encuentra el puesto'
+                    ]
+                    
+                    const ventaNoEditorialOptions = [
+                      'Nada',
+                      'Poco',
+                      'Mucho',
+                      'Puesto Cerrado',
+                      'Cerrado Definitivamente',
+                      'Zona Peligrosa',
+                      'No se encuentra el puesto'
+                    ]
+                    
+                    const repartoOptions = [
+                      'Si',
+                      'No',
+                      'Ocasionalmente',
+                      'Puesto Cerrado',
+                      'Cerrado Definitivamente',
+                      'Zona Peligrosa',
+                      'No se encuentra el puesto'
+                    ]
+                    
+                    // Detectar si es el campo Suscripciones
+                    const isSuscripcionesField = headerLower === 'suscripciones' || headerLower === 'suscripciones:' || headerLower === 'suscripcion' || headerLower === 'suscripción'
+                    
+                    const suscripcionesOptions = [
+                      'Si',
+                      'No',
+                      'Puesto Cerrado',
+                      'Cerrado Definitivamente',
+                      'Zona Peligrosa',
+                      'No se encuentra el puesto'
+                    ]
+                    
+                    // Detectar si es el campo Utiliza Parada Online
+                    const isParadaOnlineField = headerLower.includes('parada') && headerLower.includes('online')
+                    
+                    const paradaOnlineOptions = [
+                      'Si',
+                      'No',
+                      'No sabe',
+                      'Puesto Cerrado',
+                      'Cerrado Definitivamente',
+                      'Zona Peligrosa',
+                      'No se encuentra el puesto'
+                    ]
+                    
+                    // Detectar si es el campo Mayor venta
+                    const isMayorVentaField = headerLower.includes('mayor') && headerLower.includes('venta')
+                    
+                    const mayorVentaOptions = [
+                      'Mostrador',
+                      'Reparto',
+                      'Suscripciones',
+                      'No sabe / No comparte',
+                      'Puesto Cerrado',
+                      'Cerrado Definitivamente',
+                      'Zona Peligrosa',
+                      'No se encuentra el puesto'
+                    ]
                     
                     let displayValue = editedValues[idx] || ''
                     let placeholder = ''
@@ -521,26 +737,51 @@ export default function Home() {
                       placeholder = 'Se completará automáticamente'
                     }
                     
+                    // Verificar si este campo se debe auto-rellenar cuando está cerrado
+                    const camposCerradoIndexes = getCamposCerradoIndexes()
+                    const isCampoCerrado = puestoStatus === 'cerrado' && camposCerradoIndexes.includes(idx)
+                    
                     return (
-                      <div key={idx} className={`edit-field ${isAutoField ? 'auto-field' : ''}`}>
+                      <div key={idx} className={`edit-field ${isAutoField ? 'auto-field' : ''} ${isCampoCerrado ? 'campo-cerrado' : ''}`}>
                         <label>
                           {header}
                           {isAutoField && <span className="auto-badge">Auto</span>}
+                          {isCampoCerrado && <span className="auto-badge" style={{background: '#DC2626'}}>Cerrado</span>}
                         </label>
-                        <input
-                          type="text"
-                          value={isAutoField ? displayValue : (editedValues[idx] || '')}
-                          placeholder={placeholder}
-                          onChange={(e) => {
-                            if (!isIdField && !isAutoField) {
-                              const newValues = [...editedValues]
-                              newValues[idx] = e.target.value
-                              setEditedValues(newValues)
-                            }
-                          }}
-                          disabled={isIdField || isAutoField}
-                          className={isAutoField ? 'auto-input' : ''}
-                        />
+                        {isEstadoKioscoField || isHorarioField || isEscaparateField || isUbicacionField || isFachadaField || isVentaNoEditorialField || isRepartoField || isSuscripcionesField || isParadaOnlineField || isMayorVentaField ? (
+                          <select
+                            value={editedValues[idx] || ''}
+                            onChange={(e) => {
+                              if (!isCampoCerrado) {
+                                const newValues = [...editedValues]
+                                newValues[idx] = e.target.value
+                                setEditedValues(newValues)
+                              }
+                            }}
+                            className="estado-kiosco-select"
+                            disabled={isCampoCerrado}
+                          >
+                            <option value="">-- Seleccionar {isHorarioField ? 'horario' : isEscaparateField ? 'escaparate' : isUbicacionField ? 'ubicación' : isFachadaField ? 'fachada' : isVentaNoEditorialField ? 'opción' : isRepartoField ? 'reparto' : isSuscripcionesField ? 'opción' : isParadaOnlineField ? 'opción' : isMayorVentaField ? 'opción' : 'estado'} --</option>
+                            {(isHorarioField ? horarioOptions : isEscaparateField ? escaparateOptions : isUbicacionField ? ubicacionOptions : isFachadaField ? fachadaOptions : isVentaNoEditorialField ? ventaNoEditorialOptions : isRepartoField ? repartoOptions : isSuscripcionesField ? suscripcionesOptions : isParadaOnlineField ? paradaOnlineOptions : isMayorVentaField ? mayorVentaOptions : estadoKioscoOptions).map((option) => (
+                              <option key={option} value={option}>{option}</option>
+                            ))}
+                          </select>
+                        ) : (
+                          <input
+                            type="text"
+                            value={isAutoField ? displayValue : (editedValues[idx] || '')}
+                            placeholder={placeholder}
+                            onChange={(e) => {
+                              if (!isIdField && !isAutoField && !isCampoCerrado) {
+                                const newValues = [...editedValues]
+                                newValues[idx] = e.target.value
+                                setEditedValues(newValues)
+                              }
+                            }}
+                            disabled={isIdField || isAutoField || isCampoCerrado}
+                            className={isAutoField ? 'auto-input' : ''}
+                          />
+                        )}
                       </div>
                     )
                   })}

@@ -1097,6 +1097,130 @@ body {
   min-height: 100px;
 }
 
+/* Puesto Abierto/Cerrado Selector */
+.puesto-status-selector {
+  margin-bottom: 1.5rem;
+  padding: 1.25rem;
+  background: linear-gradient(135deg, #F8FAFC 0%, #F1F5F9 100%);
+  border-radius: 12px;
+  border: 2px solid var(--gray-200);
+}
+
+.puesto-status-selector label {
+  display: block;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--gray-800);
+  margin-bottom: 1rem;
+  text-align: center;
+}
+
+.puesto-status-buttons {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+}
+
+.puesto-btn {
+  flex: 1;
+  max-width: 200px;
+  padding: 1rem 1.5rem;
+  border: 2px solid var(--gray-300);
+  border-radius: 10px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-family: 'Poppins', sans-serif;
+  background: var(--white);
+  color: var(--gray-600);
+}
+
+.puesto-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.puesto-btn-abierto:hover {
+  border-color: #22C55E;
+  color: #16A34A;
+}
+
+.puesto-btn-cerrado:hover {
+  border-color: #EF4444;
+  color: #DC2626;
+}
+
+.puesto-btn-abierto.active {
+  background: linear-gradient(135deg, #22C55E 0%, #16A34A 100%);
+  border-color: #16A34A;
+  color: white;
+  box-shadow: 0 4px 15px rgba(34, 197, 94, 0.4);
+}
+
+.puesto-btn-cerrado.active {
+  background: linear-gradient(135deg, #EF4444 0%, #DC2626 100%);
+  border-color: #DC2626;
+  color: white;
+  box-shadow: 0 4px 15px rgba(239, 68, 68, 0.4);
+}
+
+.puesto-cerrado-notice {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  background: #FEF3C7;
+  border: 1px solid #FCD34D;
+  border-radius: 8px;
+  margin-top: 1rem;
+  font-size: 0.85rem;
+  color: #92400E;
+}
+
+.edit-field.campo-cerrado input,
+.edit-field.campo-cerrado select {
+  background: #FEE2E2 !important;
+  border-color: #FECACA !important;
+  color: #991B1B !important;
+  font-weight: 500;
+}
+
+.edit-field.campo-cerrado label {
+  color: #991B1B;
+}
+
+/* Estado Kiosco Select */
+.estado-kiosco-select {
+  padding: 0.75rem;
+  border: 2px solid var(--gray-200);
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-family: 'Poppins', sans-serif;
+  transition: all 0.2s;
+  background: var(--white);
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236B7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  padding-right: 2.5rem;
+}
+
+.estado-kiosco-select:focus {
+  outline: none;
+  border-color: var(--clarin-red);
+  box-shadow: 0 0 0 3px rgba(227, 30, 36, 0.1);
+}
+
+.estado-kiosco-select:hover {
+  border-color: var(--clarin-red-light);
+}
+
+.estado-kiosco-select option {
+  padding: 0.5rem;
+}
+
 /* ==================== ADMIN PANEL STYLES ==================== */
 
 .admin-panel {
