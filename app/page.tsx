@@ -279,7 +279,7 @@ export default function Home() {
       const newValues = [...editedValues]
       
       camposCerradoIndexes.forEach(idx => {
-        newValues[idx] = 'Puesto Cerrado'
+        newValues[idx] = 'Puesto Cerrado DEFINITIVAMENTE'
       })
       
       setEditedValues(newValues)
@@ -574,13 +574,13 @@ export default function Home() {
                       className={`puesto-btn puesto-btn-cerrado ${puestoStatus === 'cerrado' ? 'active' : ''}`}
                       onClick={() => handlePuestoStatusChange('cerrado')}
                     >
-                      ✗ Puesto Cerrado
+                      ✗ Puesto Cerrado DEFINITIVAMENTE
                     </button>
                   </div>
                   {puestoStatus === 'cerrado' && (
                     <div className="puesto-cerrado-notice">
                       <span className="notice-icon">⚠️</span>
-                      <span>Los campos relevantes se han rellenado automáticamente con "Puesto Cerrado".</span>
+                      <span>Los campos relevantes se han rellenado automáticamente con "Puesto Cerrado DEFINITIVAMENTE".</span>
                     </div>
                   )}
                 </div>
