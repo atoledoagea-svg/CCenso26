@@ -1002,25 +1002,35 @@ export default function Home() {
                             </span>
                           )}
                         </label>
-                        {isEstadoKioscoField || isDiasAtencionField || isHorarioField || isEscaparateField || isUbicacionField || isFachadaField || isVentaNoEditorialField || isRepartoField || isSuscripcionesField || isParadaOnlineField || isMayorVentaField ? (
-                          <select
-                            value={editedValues[idx] || ''}
-                            onChange={(e) => {
-                              if (!isCampoCerrado) {
-                                const newValues = [...editedValues]
-                                newValues[idx] = e.target.value
-                                setEditedValues(newValues)
-                              }
-                            }}
-                            className="estado-kiosco-select"
-                            disabled={isCampoCerrado}
-                          >
-                            <option value="">-- Seleccionar {isDiasAtencionField ? 'días' : isHorarioField ? 'horario' : isEscaparateField ? 'escaparate' : isUbicacionField ? 'ubicación' : isFachadaField ? 'fachada' : isVentaNoEditorialField ? 'opción' : isRepartoField ? 'reparto' : isSuscripcionesField ? 'opción' : isParadaOnlineField ? 'opción' : isMayorVentaField ? 'opción' : 'estado'} --</option>
-                            {(isDiasAtencionField ? diasAtencionOptions : isHorarioField ? horarioOptions : isEscaparateField ? escaparateOptions : isUbicacionField ? ubicacionOptions : isFachadaField ? fachadaOptions : isVentaNoEditorialField ? ventaNoEditorialOptions : isRepartoField ? repartoOptions : isSuscripcionesField ? suscripcionesOptions : isParadaOnlineField ? paradaOnlineOptions : isMayorVentaField ? mayorVentaOptions : estadoKioscoOptions).map((option) => (
-                              <option key={option} value={option}>{option}</option>
-                            ))}
-                          </select>
-                        ) : isSugerenciasField ? (
+                        {isEstadoKioscoField || isDiasAtencionField || isHorarioField || isEscaparateField || isUbicacionField || isFachadaField || isVentaNoEditorialField || isRepartoField || isSuscripcionesField || isParadaOnlineField || isMayorVentaField ? (() => {
+                          const currentOptions = isDiasAtencionField ? diasAtencionOptions : isHorarioField ? horarioOptions : isEscaparateField ? escaparateOptions : isUbicacionField ? ubicacionOptions : isFachadaField ? fachadaOptions : isVentaNoEditorialField ? ventaNoEditorialOptions : isRepartoField ? repartoOptions : isSuscripcionesField ? suscripcionesOptions : isParadaOnlineField ? paradaOnlineOptions : isMayorVentaField ? mayorVentaOptions : estadoKioscoOptions
+                          const currentValue = editedValues[idx] || ''
+                          const valueExistsInOptions = currentOptions.includes(currentValue) || currentValue === ''
+                          
+                          return (
+                            <select
+                              value={currentValue}
+                              onChange={(e) => {
+                                if (!isCampoCerrado) {
+                                  const newValues = [...editedValues]
+                                  newValues[idx] = e.target.value
+                                  setEditedValues(newValues)
+                                }
+                              }}
+                              className="estado-kiosco-select"
+                              disabled={isCampoCerrado}
+                            >
+                              <option value="">-- Seleccionar {isDiasAtencionField ? 'días' : isHorarioField ? 'horario' : isEscaparateField ? 'escaparate' : isUbicacionField ? 'ubicación' : isFachadaField ? 'fachada' : isVentaNoEditorialField ? 'opción' : isRepartoField ? 'reparto' : isSuscripcionesField ? 'opción' : isParadaOnlineField ? 'opción' : isMayorVentaField ? 'opción' : 'estado'} --</option>
+                              {/* Si el valor actual no está en las opciones, mostrarlo primero */}
+                              {!valueExistsInOptions && currentValue && (
+                                <option key={currentValue} value={currentValue}>{currentValue}</option>
+                              )}
+                              {currentOptions.map((option) => (
+                                <option key={option} value={option}>{option}</option>
+                              ))}
+                            </select>
+                          )
+                        })() : isSugerenciasField ? (
                           <textarea
                             value={editedValues[idx] || ''}
                             placeholder="Escriba aquí las sugerencias u observaciones del PDV..."
