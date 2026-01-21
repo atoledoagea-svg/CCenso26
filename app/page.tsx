@@ -40,9 +40,11 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null)
   const [editingRow, setEditingRow] = useState<number | null>(null)
   const [editedValues, setEditedValues] = useState<any[]>([])
+  const [originalValues, setOriginalValues] = useState<any[]>([]) // Valores originales del Excel
   const [saving, setSaving] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [searchType, setSearchType] = useState<'id' | 'paquete'>('id')
+  const [filterRelevado, setFilterRelevado] = useState<'todos' | 'relevados' | 'no_relevados'>('todos')
   
   // Admin panel states
   const [showPermissionsPanel, setShowPermissionsPanel] = useState(false)
@@ -57,7 +59,7 @@ export default function Home() {
   const itemsPerPage = 50
   
   // Puesto Abierto/Cerrado state
-  const [puestoStatus, setPuestoStatus] = useState<'abierto' | 'cerrado' | ''>('')
+  const [puestoStatus, setPuestoStatus] = useState<'abierto' | 'cerrado' | 'no_encontrado' | 'zona_peligrosa' | ''>('')
 
   const CLIENT_ID = '549677208908-9h6q933go4ss870pbq8gd8gaae75k338.apps.googleusercontent.com'
   const API_KEY = 'AIzaSyCJUD23abF8LcZPp7e8eiK0D5IfFoRCxUc'
@@ -204,8 +206,24 @@ export default function Home() {
 
   const handleEditRow = (rowIndex: number) => {
     if (sheetData) {
+      const rowData = [...sheetData.data[rowIndex]]
+      
+      // Verificar si el PDV ya fue relevado
+      const { relevadorIndex } = getAutoFillIndexes()
+      const relevadorValue = relevadorIndex !== -1 ? String(rowData[relevadorIndex] || '').trim() : ''
+      const isAlreadyRelevado = relevadorValue !== ''
+      
+      // Si ya fue relevado, pedir confirmación
+      if (isAlreadyRelevado) {
+        const confirmEdit = window.confirm(
+          `⚠️ Este puesto ya fue relevado por: ${relevadorValue}\n\n¿Estás seguro que quieres editar este puesto ya relevado?`
+        )
+        if (!confirmEdit) return
+      }
+      
       setEditingRow(rowIndex)
-      setEditedValues([...sheetData.data[rowIndex]])
+      setEditedValues(rowData)
+      setOriginalValues(rowData) // Guardar los valores originales del Excel
       setPuestoStatus('abierto')
     }
   }
@@ -215,6 +233,7 @@ export default function Home() {
     if (confirmCancel) {
       setEditingRow(null)
       setEditedValues([])
+      setOriginalValues([])
       setPuestoStatus('')
     }
   }
@@ -271,15 +290,43 @@ export default function Home() {
   }
 
   // Manejar cambio de estado del puesto
-  const handlePuestoStatusChange = (status: 'abierto' | 'cerrado') => {
+  const handlePuestoStatusChange = (status: 'abierto' | 'cerrado' | 'no_encontrado' | 'zona_peligrosa') => {
     setPuestoStatus(status)
     
-    if (status === 'cerrado') {
+    if (status === 'abierto') {
+      // Restaurar los valores originales del Excel
+      const camposCerradoIndexes = getCamposCerradoIndexes()
+      const newValues = [...editedValues]
+      
+      camposCerradoIndexes.forEach(idx => {
+        newValues[idx] = originalValues[idx] || ''
+      })
+      
+      setEditedValues(newValues)
+    } else if (status === 'cerrado') {
       const camposCerradoIndexes = getCamposCerradoIndexes()
       const newValues = [...editedValues]
       
       camposCerradoIndexes.forEach(idx => {
         newValues[idx] = 'Puesto Cerrado DEFINITIVAMENTE'
+      })
+      
+      setEditedValues(newValues)
+    } else if (status === 'no_encontrado') {
+      const camposCerradoIndexes = getCamposCerradoIndexes()
+      const newValues = [...editedValues]
+      
+      camposCerradoIndexes.forEach(idx => {
+        newValues[idx] = 'NO SE ENCONTRO PUESTO'
+      })
+      
+      setEditedValues(newValues)
+    } else if (status === 'zona_peligrosa') {
+      const camposCerradoIndexes = getCamposCerradoIndexes()
+      const newValues = [...editedValues]
+      
+      camposCerradoIndexes.forEach(idx => {
+        newValues[idx] = 'ZONA PELIGROSA'
       })
       
       setEditedValues(newValues)
@@ -426,21 +473,35 @@ export default function Home() {
   }
 
   const filteredData = sheetData?.data.filter(row => {
-    if (!searchTerm.trim()) return true
-    
-    const searchValue = searchTerm.trim().toLowerCase()
-    
-    if (searchType === 'id') {
-      // Exact match for ID (first column)
-      const rowId = String(row[0] || '').toLowerCase().trim()
-      return rowId === searchValue
-    } else {
-      // Flexible match for Paquete column (contains)
-      const paqueteIndex = getPaqueteIndex()
-      if (paqueteIndex === -1) return true
-      const paqueteValue = String(row[paqueteIndex] || '').toLowerCase().trim()
-      return paqueteValue.includes(searchValue)
+    // Filtro por búsqueda de texto
+    if (searchTerm.trim()) {
+      const searchValue = searchTerm.trim().toLowerCase()
+      
+      if (searchType === 'id') {
+        // Exact match for ID (first column)
+        const rowId = String(row[0] || '').toLowerCase().trim()
+        if (rowId !== searchValue) return false
+      } else {
+        // Flexible match for Paquete column (contains)
+        const paqueteIndex = getPaqueteIndex()
+        if (paqueteIndex !== -1) {
+          const paqueteValue = String(row[paqueteIndex] || '').toLowerCase().trim()
+          if (!paqueteValue.includes(searchValue)) return false
+        }
+      }
     }
+    
+    // Filtro por estado de relevamiento
+    if (filterRelevado !== 'todos') {
+      const { relevadorIndex } = getAutoFillIndexes()
+      const relevadorValue = relevadorIndex !== -1 ? String(row[relevadorIndex] || '').trim() : ''
+      const isRelevado = relevadorValue !== ''
+      
+      if (filterRelevado === 'relevados' && !isRelevado) return false
+      if (filterRelevado === 'no_relevados' && isRelevado) return false
+    }
+    
+    return true
   }) || []
 
   // Pagination logic
@@ -451,7 +512,7 @@ export default function Home() {
   
   useEffect(() => {
     setCurrentPage(1)
-  }, [searchTerm, searchType])
+  }, [searchTerm, searchType, filterRelevado])
 
   const getPageNumbers = () => {
     const pages: (number | string)[] = []
@@ -560,7 +621,7 @@ export default function Home() {
               <div className="modal-body">
                 {/* Selector de Puesto Abierto/Cerrado */}
                 <div className="puesto-status-selector">
-                  <label>¿El puesto está abierto o cerrado?</label>
+                  <label>¿Cuál es el estado del puesto?</label>
                   <div className="puesto-status-buttons">
                     <button
                       type="button"
@@ -576,11 +637,37 @@ export default function Home() {
                     >
                       ✗ Puesto Cerrado DEFINITIVAMENTE
                     </button>
+                    <button
+                      type="button"
+                      className={`puesto-btn puesto-btn-no-encontrado ${puestoStatus === 'no_encontrado' ? 'active' : ''}`}
+                      onClick={() => handlePuestoStatusChange('no_encontrado')}
+                    >
+                      ? No se encontró el puesto
+                    </button>
+                    <button
+                      type="button"
+                      className={`puesto-btn puesto-btn-peligrosa ${puestoStatus === 'zona_peligrosa' ? 'active' : ''}`}
+                      onClick={() => handlePuestoStatusChange('zona_peligrosa')}
+                    >
+                      ⚠ Zona Peligrosa
+                    </button>
                   </div>
                   {puestoStatus === 'cerrado' && (
                     <div className="puesto-cerrado-notice">
                       <span className="notice-icon">⚠️</span>
                       <span>Los campos relevantes se han rellenado automáticamente con "Puesto Cerrado DEFINITIVAMENTE".</span>
+                    </div>
+                  )}
+                  {puestoStatus === 'no_encontrado' && (
+                    <div className="puesto-cerrado-notice puesto-no-encontrado-notice">
+                      <span className="notice-icon">❓</span>
+                      <span>Los campos relevantes se han rellenado automáticamente con "NO SE ENCONTRO PUESTO".</span>
+                    </div>
+                  )}
+                  {puestoStatus === 'zona_peligrosa' && (
+                    <div className="puesto-cerrado-notice puesto-peligrosa-notice">
+                      <span className="notice-icon">🚨</span>
+                      <span>Los campos relevantes se han rellenado automáticamente con "ZONA PELIGROSA".</span>
                     </div>
                   )}
                 </div>
@@ -737,16 +824,26 @@ export default function Home() {
                       placeholder = 'Se completará automáticamente'
                     }
                     
-                    // Verificar si este campo se debe auto-rellenar cuando está cerrado
+                    // Verificar si este campo se debe auto-rellenar cuando está cerrado/no encontrado/zona peligrosa
                     const camposCerradoIndexes = getCamposCerradoIndexes()
-                    const isCampoCerrado = puestoStatus === 'cerrado' && camposCerradoIndexes.includes(idx)
+                    const isCampoCerrado = (puestoStatus === 'cerrado' || puestoStatus === 'no_encontrado' || puestoStatus === 'zona_peligrosa') && camposCerradoIndexes.includes(idx)
                     
                     return (
                       <div key={idx} className={`edit-field ${isAutoField ? 'auto-field' : ''} ${isCampoCerrado ? 'campo-cerrado' : ''}`}>
                         <label>
                           {header}
                           {isAutoField && <span className="auto-badge">Auto</span>}
-                          {isCampoCerrado && <span className="auto-badge" style={{background: '#DC2626'}}>Cerrado</span>}
+                          {isCampoCerrado && (
+                            <span className="auto-badge" style={{
+                              background: puestoStatus === 'cerrado' ? '#6B7280' : 
+                                         puestoStatus === 'no_encontrado' ? '#F59E0B' : 
+                                         puestoStatus === 'zona_peligrosa' ? '#DC2626' : '#DC2626'
+                            }}>
+                              {puestoStatus === 'cerrado' ? 'Cerrado' : 
+                               puestoStatus === 'no_encontrado' ? 'No encontrado' : 
+                               puestoStatus === 'zona_peligrosa' ? 'Peligrosa' : 'Auto'}
+                            </span>
+                          )}
                         </label>
                         {isEstadoKioscoField || isHorarioField || isEscaparateField || isUbicacionField || isFachadaField || isVentaNoEditorialField || isRepartoField || isSuscripcionesField || isParadaOnlineField || isMayorVentaField ? (
                           <select
@@ -993,6 +1090,24 @@ export default function Home() {
               Gestionar Permisos
             </button>
           )}
+          {/* Contador de PDV relevados para usuarios con IDs asignados */}
+          {sheetData && userEmail && sheetData.permissions?.allowedIds && sheetData.permissions.allowedIds.length > 0 && !sheetData.permissions.isAdmin && (() => {
+            const stats = getUserStats(userEmail, sheetData.permissions.allowedIds)
+            const percent = stats.total > 0 ? Math.round((stats.relevados / stats.total) * 100) : 0
+            return (
+              <div className="pdv-counter">
+                <div className="pdv-counter-label">PDV Relevados</div>
+                <div className="pdv-counter-value">
+                  <span className="pdv-done">{stats.relevados}</span>
+                  <span className="pdv-separator">/</span>
+                  <span className="pdv-total">{stats.total}</span>
+                </div>
+                <div className="pdv-counter-bar">
+                  <div className="pdv-counter-fill" style={{ width: `${percent}%` }}></div>
+                </div>
+              </div>
+            )
+          })()}
           <div className="user-badge">
             <span className="user-email">{userEmail}</span>
             {sheetData?.permissions?.isAdmin && (
@@ -1036,6 +1151,15 @@ export default function Home() {
                 </button>
               )}
             </div>
+            <select 
+              value={filterRelevado}
+              onChange={(e) => setFilterRelevado(e.target.value as 'todos' | 'relevados' | 'no_relevados')}
+              className="filter-relevado-select"
+            >
+              <option value="todos">📋 Todos los PDV</option>
+              <option value="relevados">✅ Solo relevados</option>
+              <option value="no_relevados">⏳ Sin relevar</option>
+            </select>
             <button 
               className="btn-primary"
               onClick={() => accessToken && loadSheetData(accessToken)}
@@ -1092,8 +1216,13 @@ export default function Home() {
                   {paginatedData.map((row, rowIdx) => {
                     const originalIndex = sheetData.data.indexOf(row)
                     
+                    // Verificar si la fila ya fue relevada (tiene valor en "Relevador por:")
+                    const { relevadorIndex } = getAutoFillIndexes()
+                    const relevadorValue = relevadorIndex !== -1 ? String(row[relevadorIndex] || '').trim() : ''
+                    const isRelevado = relevadorValue !== ''
+                    
                     return (
-                      <tr key={rowIdx}>
+                      <tr key={rowIdx} className={isRelevado ? 'row-relevado' : ''}>
                         <td className="actions-col">
                           <button 
                             className="btn-edit"
