@@ -45,6 +45,7 @@ export default function Home() {
   const [searchTerm, setSearchTerm] = useState('')
   const [searchType, setSearchType] = useState<'id' | 'paquete'>('id')
   const [filterRelevado, setFilterRelevado] = useState<'todos' | 'relevados' | 'no_relevados'>('todos')
+  const [showStats, setShowStats] = useState(false)
   
   // Admin panel states
   const [showPermissionsPanel, setShowPermissionsPanel] = useState(false)
@@ -472,6 +473,141 @@ export default function Home() {
     return headers.findIndex(h => h.includes('paquete'))
   }
 
+  // Campos para estadísticas con gráficos
+  const statsFields = [
+    'estado kiosco',
+    'dias de atención',
+    'dias de atencion', 
+    'horario',
+    'escaparate',
+    'ubicación',
+    'ubicacion',
+    'fachada puesto',
+    'fachada de puesto',
+    'venta productos no editoriales',
+    'venta de productos no editoriales',
+    'suscripciones',
+    'mayor venta',
+    'utiliza parada online',
+    'utiliza parada online?',
+    'reparto'
+  ]
+
+  // Calcular estadísticas para gráficos (solo PDV relevados)
+  const getFieldStats = () => {
+    if (!sheetData) return []
+    
+    const headers = sheetData.headers
+    const headersLower = headers.map(h => h.toLowerCase().trim())
+    const results: { fieldName: string; data: { label: string; count: number; color: string }[] }[] = []
+    
+    // Obtener índice de la columna "Relevado por:"
+    const { relevadorIndex } = getAutoFillIndexes()
+    
+    // Filtrar solo las filas que ya fueron relevadas
+    const relevadosData = sheetData.data.filter(row => {
+      if (relevadorIndex === -1) return false
+      const relevadorValue = String(row[relevadorIndex] || '').trim()
+      return relevadorValue !== ''
+    })
+    
+    // Colores para los gráficos
+    const colors = [
+      '#22C55E', '#3B82F6', '#F59E0B', '#EF4444', '#8B5CF6', 
+      '#EC4899', '#06B6D4', '#84CC16', '#F97316', '#6366F1',
+      '#14B8A6', '#A855F7', '#FB7185', '#FBBF24', '#34D399'
+    ]
+    
+    headersLower.forEach((header, idx) => {
+      // Verificar si este campo es uno de los que queremos graficar
+      const isStatsField = statsFields.some(field => 
+        header.includes(field) || field.includes(header)
+      )
+      
+      if (isStatsField) {
+        const counts: { [key: string]: number } = {}
+        
+        // Contar valores solo de PDV relevados
+        relevadosData.forEach(row => {
+          const value = String(row[idx] || '').trim()
+          if (value) {
+            counts[value] = (counts[value] || 0) + 1
+          }
+        })
+        
+        // Convertir a array y ordenar por cantidad
+        const data = Object.entries(counts)
+          .map(([label, count], i) => ({
+            label,
+            count,
+            color: colors[i % colors.length]
+          }))
+          .sort((a, b) => b.count - a.count)
+        
+        if (data.length > 0) {
+          results.push({
+            fieldName: headers[idx],
+            data
+          })
+        }
+      }
+    })
+    
+    return results
+  }
+
+  // Descargar estadísticas como CSV/Excel
+  const downloadStatsAsExcel = () => {
+    const stats = getFieldStats()
+    if (stats.length === 0) return
+    
+    // Obtener conteo de relevados
+    const { relevadorIndex } = getAutoFillIndexes()
+    const totalRelevados = sheetData?.data.filter(row => {
+      if (relevadorIndex === -1) return false
+      return String(row[relevadorIndex] || '').trim() !== ''
+    }).length || 0
+    
+    let csvContent = '\uFEFF' // BOM para UTF-8 en Excel
+    
+    // Título y resumen
+    csvContent += 'ESTADÍSTICAS DE PDV RELEVADOS\n'
+    csvContent += `Fecha de generación:,${new Date().toLocaleDateString('es-AR')}\n`
+    csvContent += `Total PDV:,${sheetData?.data.length || 0}\n`
+    csvContent += `PDV Relevados:,${totalRelevados}\n`
+    csvContent += `PDV Pendientes:,${(sheetData?.data.length || 0) - totalRelevados}\n`
+    csvContent += '\n'
+    
+    // Datos de cada campo
+    stats.forEach(fieldStat => {
+      const total = fieldStat.data.reduce((sum, d) => sum + d.count, 0)
+      
+      csvContent += `${fieldStat.fieldName}\n`
+      csvContent += 'Opción,Cantidad,Porcentaje\n'
+      
+      fieldStat.data.forEach(d => {
+        const percent = Math.round((d.count / total) * 100)
+        // Escapar comas en las etiquetas
+        const label = d.label.includes(',') ? `"${d.label}"` : d.label
+        csvContent += `${label},${d.count},${percent}%\n`
+      })
+      
+      csvContent += `Total,${total},100%\n`
+      csvContent += '\n'
+    })
+    
+    // Crear y descargar el archivo
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const link = document.createElement('a')
+    const url = URL.createObjectURL(blob)
+    link.setAttribute('href', url)
+    link.setAttribute('download', `Estadisticas_PDV_${new Date().toISOString().split('T')[0]}.csv`)
+    link.style.visibility = 'hidden'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
+
   const filteredData = sheetData?.data.filter(row => {
     // Filtro por búsqueda de texto
     if (searchTerm.trim()) {
@@ -687,6 +823,9 @@ export default function Home() {
                     const headerLower = header.toLowerCase().trim()
                     const isEstadoKioscoField = headerLower.includes('estado') && headerLower.includes('kiosco')
                     
+                    // Detectar si es el campo Días de atención
+                    const isDiasAtencionField = headerLower.includes('dias de atención') || headerLower.includes('dias de atencion') || headerLower === 'dias de atención' || headerLower === 'dias de atencion'
+                    
                     // Detectar si es el campo Horario
                     const isHorarioField = headerLower === 'horario' || headerLower === 'horario:'
                     
@@ -705,11 +844,31 @@ export default function Home() {
                     // Detectar si es el campo Reparto
                     const isRepartoField = headerLower === 'reparto' || headerLower === 'reparto:'
                     
+                    // Detectar si es el campo Sugerencias
+                    const isSugerenciasField = headerLower.includes('sugerencia') || headerLower.includes('sigeremcia') || headerLower.includes('observacion') || headerLower.includes('observación') || headerLower.includes('comentario')
+                    
+                    // Corregir nombre mal escrito de Sugerencias
+                    const displayHeader = isSugerenciasField && (headerLower.includes('sigeremcia')) 
+                      ? 'Sugerencias del PDV' 
+                      : header
+                    
                     const estadoKioscoOptions = [
                       'Abierto',
                       'Cerrado ahora',
                       'Abre ocasionalmente',
                       'Cerrado definitivamente',
+                      'Zona Peligrosa',
+                      'No se encuentra el puesto'
+                    ]
+                    
+                    const diasAtencionOptions = [
+                      'Todos los dias',
+                      'De L a V',
+                      'Sabado y Domingo',
+                      '3 veces por semana',
+                      '4 veces por Semana',
+                      'Puesto Cerrado',
+                      'Cerrado Definitivamente',
                       'Zona Peligrosa',
                       'No se encuentra el puesto'
                     ]
@@ -729,7 +888,6 @@ export default function Home() {
                       'Chico',
                       'Mediano',
                       'Grande',
-                      'Puesto Cerrado',
                       'Cerrado Definitivamente',
                       'Zona Peligrosa',
                       'No se encuentra el puesto'
@@ -739,7 +897,6 @@ export default function Home() {
                       'Avenida',
                       'Barrio',
                       'Estación Subte/Tren',
-                      'Puesto Cerrado',
                       'Cerrado Definitivamente',
                       'Zona Peligrosa',
                       'No se encuentra el puesto'
@@ -831,7 +988,7 @@ export default function Home() {
                     return (
                       <div key={idx} className={`edit-field ${isAutoField ? 'auto-field' : ''} ${isCampoCerrado ? 'campo-cerrado' : ''}`}>
                         <label>
-                          {header}
+                          {isSugerenciasField ? displayHeader : header}
                           {isAutoField && <span className="auto-badge">Auto</span>}
                           {isCampoCerrado && (
                             <span className="auto-badge" style={{
@@ -845,7 +1002,7 @@ export default function Home() {
                             </span>
                           )}
                         </label>
-                        {isEstadoKioscoField || isHorarioField || isEscaparateField || isUbicacionField || isFachadaField || isVentaNoEditorialField || isRepartoField || isSuscripcionesField || isParadaOnlineField || isMayorVentaField ? (
+                        {isEstadoKioscoField || isDiasAtencionField || isHorarioField || isEscaparateField || isUbicacionField || isFachadaField || isVentaNoEditorialField || isRepartoField || isSuscripcionesField || isParadaOnlineField || isMayorVentaField ? (
                           <select
                             value={editedValues[idx] || ''}
                             onChange={(e) => {
@@ -858,11 +1015,26 @@ export default function Home() {
                             className="estado-kiosco-select"
                             disabled={isCampoCerrado}
                           >
-                            <option value="">-- Seleccionar {isHorarioField ? 'horario' : isEscaparateField ? 'escaparate' : isUbicacionField ? 'ubicación' : isFachadaField ? 'fachada' : isVentaNoEditorialField ? 'opción' : isRepartoField ? 'reparto' : isSuscripcionesField ? 'opción' : isParadaOnlineField ? 'opción' : isMayorVentaField ? 'opción' : 'estado'} --</option>
-                            {(isHorarioField ? horarioOptions : isEscaparateField ? escaparateOptions : isUbicacionField ? ubicacionOptions : isFachadaField ? fachadaOptions : isVentaNoEditorialField ? ventaNoEditorialOptions : isRepartoField ? repartoOptions : isSuscripcionesField ? suscripcionesOptions : isParadaOnlineField ? paradaOnlineOptions : isMayorVentaField ? mayorVentaOptions : estadoKioscoOptions).map((option) => (
+                            <option value="">-- Seleccionar {isDiasAtencionField ? 'días' : isHorarioField ? 'horario' : isEscaparateField ? 'escaparate' : isUbicacionField ? 'ubicación' : isFachadaField ? 'fachada' : isVentaNoEditorialField ? 'opción' : isRepartoField ? 'reparto' : isSuscripcionesField ? 'opción' : isParadaOnlineField ? 'opción' : isMayorVentaField ? 'opción' : 'estado'} --</option>
+                            {(isDiasAtencionField ? diasAtencionOptions : isHorarioField ? horarioOptions : isEscaparateField ? escaparateOptions : isUbicacionField ? ubicacionOptions : isFachadaField ? fachadaOptions : isVentaNoEditorialField ? ventaNoEditorialOptions : isRepartoField ? repartoOptions : isSuscripcionesField ? suscripcionesOptions : isParadaOnlineField ? paradaOnlineOptions : isMayorVentaField ? mayorVentaOptions : estadoKioscoOptions).map((option) => (
                               <option key={option} value={option}>{option}</option>
                             ))}
                           </select>
+                        ) : isSugerenciasField ? (
+                          <textarea
+                            value={editedValues[idx] || ''}
+                            placeholder="Escriba aquí las sugerencias u observaciones del PDV..."
+                            onChange={(e) => {
+                              if (!isCampoCerrado) {
+                                const newValues = [...editedValues]
+                                newValues[idx] = e.target.value
+                                setEditedValues(newValues)
+                              }
+                            }}
+                            disabled={isCampoCerrado}
+                            className="sugerencias-textarea"
+                            rows={3}
+                          />
                         ) : (
                           <input
                             type="text"
@@ -1026,6 +1198,113 @@ export default function Home() {
         </div>
       )}
 
+      {/* Statistics Modal */}
+      {showStats && sheetData && (
+        <div className="modal-overlay" onClick={() => setShowStats(false)}>
+          <div className="stats-panel" onClick={e => e.stopPropagation()}>
+            <div className="stats-header">
+              <h2>📊 Estadísticas de PDV Relevados</h2>
+              <div className="stats-header-actions">
+                <button 
+                  className="btn-download-stats"
+                  onClick={downloadStatsAsExcel}
+                  title="Descargar estadísticas en Excel/CSV"
+                >
+                  📥 Descargar Excel
+                </button>
+                <button className="btn-close" onClick={() => setShowStats(false)}>×</button>
+              </div>
+            </div>
+            <div className="stats-body">
+              <div className="stats-summary">
+                <div className="summary-card">
+                  <span className="summary-number">{sheetData.data.length}</span>
+                  <span className="summary-label">Total PDV</span>
+                </div>
+                <div className="summary-card summary-green">
+                  <span className="summary-number">
+                    {sheetData.data.filter(row => {
+                      const { relevadorIndex } = getAutoFillIndexes()
+                      return relevadorIndex !== -1 && String(row[relevadorIndex] || '').trim() !== ''
+                    }).length}
+                  </span>
+                  <span className="summary-label">Relevados</span>
+                </div>
+                <div className="summary-card summary-orange">
+                  <span className="summary-number">
+                    {sheetData.data.filter(row => {
+                      const { relevadorIndex } = getAutoFillIndexes()
+                      return relevadorIndex === -1 || String(row[relevadorIndex] || '').trim() === ''
+                    }).length}
+                  </span>
+                  <span className="summary-label">Pendientes</span>
+                </div>
+              </div>
+              
+              <div className="charts-grid">
+                {getFieldStats().map((fieldStat, idx) => {
+                  const total = fieldStat.data.reduce((sum, d) => sum + d.count, 0)
+                  let cumulativePercent = 0
+                  
+                  // Calcular gradiente cónico para el gráfico de pastel
+                  const gradientStops = fieldStat.data.map(d => {
+                    const percent = (d.count / total) * 100
+                    const start = cumulativePercent
+                    cumulativePercent += percent
+                    return `${d.color} ${start}% ${cumulativePercent}%`
+                  }).join(', ')
+                  
+                  return (
+                    <div key={idx} className="chart-card">
+                      <h3 className="chart-title">{fieldStat.fieldName}</h3>
+                      <div className="chart-content">
+                        <div 
+                          className="pie-chart"
+                          style={{ 
+                            background: `conic-gradient(${gradientStops})`
+                          }}
+                        >
+                          <div className="pie-center">
+                            <span className="pie-total">{total}</span>
+                            <span className="pie-label">Total</span>
+                          </div>
+                        </div>
+                        <div className="chart-legend">
+                          {fieldStat.data.slice(0, 8).map((d, i) => (
+                            <div key={i} className="legend-item">
+                              <span 
+                                className="legend-color" 
+                                style={{ background: d.color }}
+                              ></span>
+                              <span className="legend-label">{d.label}</span>
+                              <span className="legend-count">{d.count}</span>
+                              <span className="legend-percent">
+                                ({Math.round((d.count / total) * 100)}%)
+                              </span>
+                            </div>
+                          ))}
+                          {fieldStat.data.length > 8 && (
+                            <div className="legend-more">
+                              +{fieldStat.data.length - 8} más...
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+              
+              {getFieldStats().length === 0 && (
+                <div className="no-stats">
+                  <p>No hay datos suficientes para generar estadísticas</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Edit Permission Modal */}
       {editingPermission && (
         <div className="modal-overlay" onClick={() => setEditingPermission(null)}>
@@ -1083,12 +1362,20 @@ export default function Home() {
         </div>
         <div className="header-right">
           {sheetData?.permissions?.isAdmin && (
-            <button 
-              className="btn-admin"
-              onClick={() => setShowPermissionsPanel(true)}
-            >
-              Gestionar Permisos
-            </button>
+            <>
+              <button 
+                className="btn-stats"
+                onClick={() => setShowStats(true)}
+              >
+                📊 Estadísticas
+              </button>
+              <button 
+                className="btn-admin"
+                onClick={() => setShowPermissionsPanel(true)}
+              >
+                Gestionar Permisos
+              </button>
+            </>
           )}
           {/* Contador de PDV relevados para usuarios con IDs asignados */}
           {sheetData && userEmail && sheetData.permissions?.allowedIds && sheetData.permissions.allowedIds.length > 0 && !sheetData.permissions.isAdmin && (() => {
