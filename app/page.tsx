@@ -59,7 +59,7 @@ export default function Home() {
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 50
   
-  // Puesto Abierto/Cerrado state
+  // Puesto Activo/Cerrado state
   const [puestoStatus, setPuestoStatus] = useState<'abierto' | 'cerrado' | 'no_encontrado' | 'zona_peligrosa' | ''>('')
 
   const CLIENT_ID = '549677208908-9h6q933go4ss870pbq8gd8gaae75k338.apps.googleusercontent.com'
@@ -336,6 +336,36 @@ export default function Home() {
 
   const handleSaveRow = async () => {
     if (!accessToken || editingRow === null || !sheetData || !userEmail) return
+    
+    // Validar campos obligatorios solo si el puesto está activo
+    if (puestoStatus === 'abierto') {
+      const headers = sheetData.headers.map(h => h.toLowerCase().trim())
+      
+      // Buscar índice de Venta productos no editoriales
+      const ventaNoEditorialIndex = headers.findIndex(h => 
+        h.includes('venta') && h.includes('no editorial')
+      )
+      
+      // Buscar índice de Teléfono
+      const telefonoIndex = headers.findIndex(h => 
+        h.includes('telefono') || h.includes('teléfono')
+      )
+      
+      const errores: string[] = []
+      
+      if (ventaNoEditorialIndex !== -1 && !String(editedValues[ventaNoEditorialIndex] || '').trim()) {
+        errores.push('- Venta productos no editoriales')
+      }
+      
+      if (telefonoIndex !== -1 && !String(editedValues[telefonoIndex] || '').trim()) {
+        errores.push('- Teléfono (poner 0 si no se obtiene)')
+      }
+      
+      if (errores.length > 0) {
+        alert(`⚠️ Por favor complete los siguientes campos obligatorios:\n\n${errores.join('\n')}`)
+        return
+      }
+    }
     
     const confirmSave = window.confirm('¿Estás seguro de que deseas guardar los cambios?')
     if (!confirmSave) return
@@ -755,7 +785,7 @@ export default function Home() {
                 <button className="modal-close" onClick={handleCancelEdit}>×</button>
               </div>
               <div className="modal-body">
-                {/* Selector de Puesto Abierto/Cerrado */}
+                {/* Selector de Puesto Activo/Cerrado */}
                 <div className="puesto-status-selector">
                   <label>¿Cuál es el estado del puesto?</label>
                   <div className="puesto-status-buttons">
@@ -764,7 +794,7 @@ export default function Home() {
                       className={`puesto-btn puesto-btn-abierto ${puestoStatus === 'abierto' ? 'active' : ''}`}
                       onClick={() => handlePuestoStatusChange('abierto')}
                     >
-                      ✓ Puesto Abierto
+                      ✓ Puesto Activo
                     </button>
                     <button
                       type="button"
@@ -844,6 +874,9 @@ export default function Home() {
                     // Detectar si es el campo Reparto
                     const isRepartoField = headerLower === 'reparto' || headerLower === 'reparto:'
                     
+                    // Detectar si es el campo Distribuidora
+                    const isDistribuidoraField = headerLower === 'distribuidora' || headerLower === 'distribuidora:'
+                    
                     // Detectar si es el campo Sugerencias
                     const isSugerenciasField = headerLower.includes('sugerencia') || headerLower.includes('sigeremcia') || headerLower.includes('observacion') || headerLower.includes('observación') || headerLower.includes('comentario')
                     
@@ -851,6 +884,15 @@ export default function Home() {
                     const displayHeader = isSugerenciasField && (headerLower.includes('sigeremcia')) 
                       ? 'Sugerencias del PDV' 
                       : header
+                    
+                    // Detectar si es el campo Teléfono
+                    const isTelefonoField = headerLower === 'teléfono' || headerLower === 'telefono' || headerLower === 'teléfono:' || headerLower === 'telefono:' || headerLower.includes('telefono') || headerLower.includes('teléfono')
+                    
+                    // Detectar si es el campo Provincia (no editable)
+                    const isProvinciaField = headerLower === 'provincia' || headerLower === 'provincia:'
+                    
+                    // Campos obligatorios destacados
+                    const isCampoObligatorio = isVentaNoEditorialField || isTelefonoField
                     
                     const estadoKioscoOptions = [
                       'Abierto',
@@ -931,6 +973,24 @@ export default function Home() {
                       'No se encuentra el puesto'
                     ]
                     
+                    const distribuidoraOptions = [
+                      'Barracas',
+                      'Belgrano',
+                      'Barrio Norte',
+                      'Zunni',
+                      'Recova',
+                      'Boulogne',
+                      'Del Parque',
+                      'Roca/La Boca',
+                      'Lavalle',
+                      'Mariano Acosta',
+                      'Nueva Era',
+                      'San Isidro',
+                      'Ex Rubbo',
+                      'Ex Lugano',
+                      'Ex Jose C Paz'
+                    ]
+                    
                     // Detectar si es el campo Suscripciones
                     const isSuscripcionesField = headerLower === 'suscripciones' || headerLower === 'suscripciones:' || headerLower === 'suscripcion' || headerLower === 'suscripción'
                     
@@ -986,10 +1046,11 @@ export default function Home() {
                     const isCampoCerrado = (puestoStatus === 'cerrado' || puestoStatus === 'no_encontrado' || puestoStatus === 'zona_peligrosa') && camposCerradoIndexes.includes(idx)
                     
                     return (
-                      <div key={idx} className={`edit-field ${isAutoField ? 'auto-field' : ''} ${isCampoCerrado ? 'campo-cerrado' : ''}`}>
+                      <div key={idx} className={`edit-field ${isAutoField ? 'auto-field' : ''} ${isCampoCerrado ? 'campo-cerrado' : ''} ${isCampoObligatorio && puestoStatus === 'abierto' ? 'campo-obligatorio' : ''}`}>
                         <label>
                           {isSugerenciasField ? displayHeader : header}
                           {isAutoField && <span className="auto-badge">Auto</span>}
+                          {isCampoObligatorio && puestoStatus === 'abierto' && <span className="obligatorio-badge">* Obligatorio</span>}
                           {isCampoCerrado && (
                             <span className="auto-badge" style={{
                               background: puestoStatus === 'cerrado' ? '#6B7280' : 
@@ -1002,8 +1063,8 @@ export default function Home() {
                             </span>
                           )}
                         </label>
-                        {isEstadoKioscoField || isDiasAtencionField || isHorarioField || isEscaparateField || isUbicacionField || isFachadaField || isVentaNoEditorialField || isRepartoField || isSuscripcionesField || isParadaOnlineField || isMayorVentaField ? (() => {
-                          const currentOptions = isDiasAtencionField ? diasAtencionOptions : isHorarioField ? horarioOptions : isEscaparateField ? escaparateOptions : isUbicacionField ? ubicacionOptions : isFachadaField ? fachadaOptions : isVentaNoEditorialField ? ventaNoEditorialOptions : isRepartoField ? repartoOptions : isSuscripcionesField ? suscripcionesOptions : isParadaOnlineField ? paradaOnlineOptions : isMayorVentaField ? mayorVentaOptions : estadoKioscoOptions
+                        {isEstadoKioscoField || isDiasAtencionField || isHorarioField || isEscaparateField || isUbicacionField || isFachadaField || isVentaNoEditorialField || isRepartoField || isSuscripcionesField || isParadaOnlineField || isMayorVentaField || isDistribuidoraField ? (() => {
+                          const currentOptions = isDiasAtencionField ? diasAtencionOptions : isHorarioField ? horarioOptions : isEscaparateField ? escaparateOptions : isUbicacionField ? ubicacionOptions : isFachadaField ? fachadaOptions : isVentaNoEditorialField ? ventaNoEditorialOptions : isRepartoField ? repartoOptions : isSuscripcionesField ? suscripcionesOptions : isParadaOnlineField ? paradaOnlineOptions : isMayorVentaField ? mayorVentaOptions : isDistribuidoraField ? distribuidoraOptions : estadoKioscoOptions
                           const currentValue = editedValues[idx] || ''
                           const valueExistsInOptions = currentOptions.includes(currentValue) || currentValue === ''
                           
@@ -1020,7 +1081,7 @@ export default function Home() {
                               className="estado-kiosco-select"
                               disabled={isCampoCerrado}
                             >
-                              <option value="">-- Seleccionar {isDiasAtencionField ? 'días' : isHorarioField ? 'horario' : isEscaparateField ? 'escaparate' : isUbicacionField ? 'ubicación' : isFachadaField ? 'fachada' : isVentaNoEditorialField ? 'opción' : isRepartoField ? 'reparto' : isSuscripcionesField ? 'opción' : isParadaOnlineField ? 'opción' : isMayorVentaField ? 'opción' : 'estado'} --</option>
+                              <option value="">-- Seleccionar {isDiasAtencionField ? 'días' : isHorarioField ? 'horario' : isEscaparateField ? 'escaparate' : isUbicacionField ? 'ubicación' : isFachadaField ? 'fachada' : isVentaNoEditorialField ? 'opción' : isRepartoField ? 'reparto' : isSuscripcionesField ? 'opción' : isParadaOnlineField ? 'opción' : isMayorVentaField ? 'opción' : isDistribuidoraField ? 'distribuidora' : 'estado'} --</option>
                               {/* Si el valor actual no está en las opciones, mostrarlo primero */}
                               {!valueExistsInOptions && currentValue && (
                                 <option key={currentValue} value={currentValue}>{currentValue}</option>
@@ -1033,7 +1094,7 @@ export default function Home() {
                         })() : isSugerenciasField ? (
                           <textarea
                             value={editedValues[idx] || ''}
-                            placeholder="Escriba aquí las sugerencias u observaciones del PDV..."
+                            placeholder=""
                             onChange={(e) => {
                               if (!isCampoCerrado) {
                                 const newValues = [...editedValues]
@@ -1049,16 +1110,16 @@ export default function Home() {
                           <input
                             type="text"
                             value={isAutoField ? displayValue : (editedValues[idx] || '')}
-                            placeholder={placeholder}
+                            placeholder={isTelefonoField ? 'Ingrese teléfono (poner 0 si no se obtiene)' : placeholder}
                             onChange={(e) => {
-                              if (!isIdField && !isAutoField && !isCampoCerrado) {
+                              if (!isIdField && !isAutoField && !isCampoCerrado && !isProvinciaField) {
                                 const newValues = [...editedValues]
                                 newValues[idx] = e.target.value
                                 setEditedValues(newValues)
                               }
                             }}
-                            disabled={isIdField || isAutoField || isCampoCerrado}
-                            className={isAutoField ? 'auto-input' : ''}
+                            disabled={isIdField || isAutoField || isCampoCerrado || isProvinciaField}
+                            className={`${isAutoField ? 'auto-input' : ''} ${isCampoObligatorio && puestoStatus === 'abierto' ? 'input-obligatorio' : ''}`}
                           />
                         )}
                       </div>

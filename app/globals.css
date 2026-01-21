@@ -1448,6 +1448,49 @@ body {
   color: #991B1B;
 }
 
+/* Campos obligatorios */
+.edit-field.campo-obligatorio {
+  background: linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%);
+  padding: 0.75rem;
+  border-radius: 10px;
+  border: 2px solid #F59E0B;
+}
+
+.edit-field.campo-obligatorio label {
+  color: #92400E;
+  font-weight: 600;
+}
+
+.obligatorio-badge {
+  display: inline-block;
+  margin-left: 0.5rem;
+  padding: 0.15rem 0.5rem;
+  background: #F59E0B;
+  color: white;
+  border-radius: 4px;
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  vertical-align: middle;
+}
+
+.edit-field.campo-obligatorio input,
+.edit-field.campo-obligatorio select {
+  border-color: #F59E0B;
+  background: white;
+}
+
+.edit-field.campo-obligatorio input:focus,
+.edit-field.campo-obligatorio select:focus {
+  border-color: #D97706;
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.2);
+}
+
+.input-obligatorio::placeholder {
+  color: #92400E;
+  font-style: italic;
+}
+
 /* Estado Kiosco Select */
 .estado-kiosco-select {
   padding: 0.75rem;
