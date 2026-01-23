@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
     const userInfo = await validateGoogleToken(accessToken)
     if (!userInfo) {
       return NextResponse.json(
-        { error: 'Token inválido o expirado.' },
+        { error: 'Token inválido o expirado, cierre sesión y vuelva a ingresar.' },
         { status: 401 }
       )
     }

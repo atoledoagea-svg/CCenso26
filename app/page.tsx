@@ -305,30 +305,60 @@ export default function Home() {
       
       setEditedValues(newValues)
     } else if (status === 'cerrado') {
-      const camposCerradoIndexes = getCamposCerradoIndexes()
+      // Solo cambiar el Estado Kiosco a "Cerrado definitivamente", el resto de campos mantienen sus valores originales
+      const headers = sheetData?.headers.map(h => h.toLowerCase().trim()) || []
+      const estadoKioscoIndex = headers.findIndex(h => h.includes('estado') && h.includes('kiosco'))
+      
       const newValues = [...editedValues]
       
+      // Restaurar todos los campos cerrados a sus valores originales primero
+      const camposCerradoIndexes = getCamposCerradoIndexes()
       camposCerradoIndexes.forEach(idx => {
-        newValues[idx] = 'Puesto Cerrado DEFINITIVAMENTE'
+        newValues[idx] = originalValues[idx] || ''
       })
+      
+      // Luego solo cambiar el Estado Kiosco
+      if (estadoKioscoIndex !== -1) {
+        newValues[estadoKioscoIndex] = 'Cerrado definitivamente'
+      }
       
       setEditedValues(newValues)
     } else if (status === 'no_encontrado') {
-      const camposCerradoIndexes = getCamposCerradoIndexes()
+      // Solo cambiar el Estado Kiosco a "No se encuentra el puesto", el resto de campos mantienen sus valores originales
+      const headers = sheetData?.headers.map(h => h.toLowerCase().trim()) || []
+      const estadoKioscoIndex = headers.findIndex(h => h.includes('estado') && h.includes('kiosco'))
+      
       const newValues = [...editedValues]
       
+      // Restaurar todos los campos cerrados a sus valores originales primero
+      const camposCerradoIndexes = getCamposCerradoIndexes()
       camposCerradoIndexes.forEach(idx => {
-        newValues[idx] = 'NO SE ENCONTRO PUESTO'
+        newValues[idx] = originalValues[idx] || ''
       })
+      
+      // Luego solo cambiar el Estado Kiosco
+      if (estadoKioscoIndex !== -1) {
+        newValues[estadoKioscoIndex] = 'No se encuentra el puesto'
+      }
       
       setEditedValues(newValues)
     } else if (status === 'zona_peligrosa') {
-      const camposCerradoIndexes = getCamposCerradoIndexes()
+      // Solo cambiar el Estado Kiosco a "Zona Peligrosa", el resto de campos mantienen sus valores originales
+      const headers = sheetData?.headers.map(h => h.toLowerCase().trim()) || []
+      const estadoKioscoIndex = headers.findIndex(h => h.includes('estado') && h.includes('kiosco'))
+      
       const newValues = [...editedValues]
       
+      // Restaurar todos los campos cerrados a sus valores originales primero
+      const camposCerradoIndexes = getCamposCerradoIndexes()
       camposCerradoIndexes.forEach(idx => {
-        newValues[idx] = 'ZONA PELIGROSA'
+        newValues[idx] = originalValues[idx] || ''
       })
+      
+      // Luego solo cambiar el Estado Kiosco a Zona Peligrosa
+      if (estadoKioscoIndex !== -1) {
+        newValues[estadoKioscoIndex] = 'Zona Peligrosa'
+      }
       
       setEditedValues(newValues)
     }
@@ -337,10 +367,17 @@ export default function Home() {
   const handleSaveRow = async () => {
     if (!accessToken || editingRow === null || !sheetData || !userEmail) return
     
-    // Validar campos obligatorios solo si el puesto está activo
+    const headers = sheetData.headers.map(h => h.toLowerCase().trim())
+    const errores: string[] = []
+    
+    // Paquete es obligatorio SIEMPRE (en todos los estados)
+    const paqueteIndex = headers.findIndex(h => h.includes('paquete'))
+    if (paqueteIndex !== -1 && !String(editedValues[paqueteIndex] || '').trim()) {
+      errores.push('- Paquete')
+    }
+    
+    // Validar campos obligatorios adicionales solo si el puesto está activo
     if (puestoStatus === 'abierto') {
-      const headers = sheetData.headers.map(h => h.toLowerCase().trim())
-      
       // Buscar índice de Venta productos no editoriales
       const ventaNoEditorialIndex = headers.findIndex(h => 
         h.includes('venta') && h.includes('no editorial')
@@ -351,8 +388,6 @@ export default function Home() {
         h.includes('telefono') || h.includes('teléfono')
       )
       
-      const errores: string[] = []
-      
       if (ventaNoEditorialIndex !== -1 && !String(editedValues[ventaNoEditorialIndex] || '').trim()) {
         errores.push('- Venta productos no editoriales')
       }
@@ -360,11 +395,11 @@ export default function Home() {
       if (telefonoIndex !== -1 && !String(editedValues[telefonoIndex] || '').trim()) {
         errores.push('- Teléfono (poner 0 si no se obtiene)')
       }
-      
-      if (errores.length > 0) {
-        alert(`⚠️ Por favor complete los siguientes campos obligatorios:\n\n${errores.join('\n')}`)
-        return
-      }
+    }
+    
+    if (errores.length > 0) {
+      alert(`⚠️ Por favor complete los siguientes campos obligatorios:\n\n${errores.join('\n')}`)
+      return
     }
     
     const confirmSave = window.confirm('¿Estás seguro de que deseas guardar los cambios?')
@@ -821,19 +856,19 @@ export default function Home() {
                   {puestoStatus === 'cerrado' && (
                     <div className="puesto-cerrado-notice">
                       <span className="notice-icon">⚠️</span>
-                      <span>Los campos relevantes se han rellenado automáticamente con "Puesto Cerrado DEFINITIVAMENTE".</span>
+                      <span>Solo el campo "Estado Kiosco" se ha cambiado a "Cerrado definitivamente". El resto de los campos mantienen sus valores originales.</span>
                     </div>
                   )}
                   {puestoStatus === 'no_encontrado' && (
                     <div className="puesto-cerrado-notice puesto-no-encontrado-notice">
                       <span className="notice-icon">❓</span>
-                      <span>Los campos relevantes se han rellenado automáticamente con "NO SE ENCONTRO PUESTO".</span>
+                      <span>Solo el campo "Estado Kiosco" se ha cambiado a "No se encuentra el puesto". El resto de los campos mantienen sus valores originales.</span>
                     </div>
                   )}
                   {puestoStatus === 'zona_peligrosa' && (
                     <div className="puesto-cerrado-notice puesto-peligrosa-notice">
                       <span className="notice-icon">🚨</span>
-                      <span>Los campos relevantes se han rellenado automáticamente con "ZONA PELIGROSA".</span>
+                      <span>Solo el campo "Estado Kiosco" se ha cambiado a "Zona Peligrosa". El resto de los campos mantienen sus valores originales.</span>
                     </div>
                   )}
                 </div>
@@ -891,8 +926,13 @@ export default function Home() {
                     // Detectar si es el campo Provincia (no editable)
                     const isProvinciaField = headerLower === 'provincia' || headerLower === 'provincia:'
                     
-                    // Campos obligatorios destacados
-                    const isCampoObligatorio = isVentaNoEditorialField || isTelefonoField
+                    // Detectar si es el campo Paquete
+                    const isPaqueteField = headerLower.includes('paquete')
+                    
+                    // Campos obligatorios: Paquete es SIEMPRE obligatorio, los demás solo cuando está abierto
+                    const isCampoObligatorioSiempre = isPaqueteField
+                    const isCampoObligatorioSoloAbierto = isVentaNoEditorialField || isTelefonoField
+                    const isCampoObligatorio = isCampoObligatorioSiempre || (isCampoObligatorioSoloAbierto && puestoStatus === 'abierto')
                     
                     const estadoKioscoOptions = [
                       'Abierto',
@@ -1042,15 +1082,15 @@ export default function Home() {
                     }
                     
                     // Verificar si este campo se debe auto-rellenar cuando está cerrado/no encontrado/zona peligrosa
-                    const camposCerradoIndexes = getCamposCerradoIndexes()
-                    const isCampoCerrado = (puestoStatus === 'cerrado' || puestoStatus === 'no_encontrado' || puestoStatus === 'zona_peligrosa') && camposCerradoIndexes.includes(idx)
+                    // Solo bloquear el campo Estado Kiosco en todos los casos
+                    const isCampoCerrado = (puestoStatus === 'cerrado' || puestoStatus === 'no_encontrado' || puestoStatus === 'zona_peligrosa') && isEstadoKioscoField
                     
                     return (
-                      <div key={idx} className={`edit-field ${isAutoField ? 'auto-field' : ''} ${isCampoCerrado ? 'campo-cerrado' : ''} ${isCampoObligatorio && puestoStatus === 'abierto' ? 'campo-obligatorio' : ''}`}>
+                      <div key={idx} className={`edit-field ${isAutoField ? 'auto-field' : ''} ${isCampoCerrado ? 'campo-cerrado' : ''} ${isCampoObligatorio ? 'campo-obligatorio' : ''}`}>
                         <label>
                           {isSugerenciasField ? displayHeader : header}
                           {isAutoField && <span className="auto-badge">Auto</span>}
-                          {isCampoObligatorio && puestoStatus === 'abierto' && <span className="obligatorio-badge">* Obligatorio</span>}
+                          {isCampoObligatorio && <span className="obligatorio-badge">* Obligatorio</span>}
                           {isCampoCerrado && (
                             <span className="auto-badge" style={{
                               background: puestoStatus === 'cerrado' ? '#6B7280' : 
@@ -1119,7 +1159,7 @@ export default function Home() {
                               }
                             }}
                             disabled={isIdField || isAutoField || isCampoCerrado || isProvinciaField}
-                            className={`${isAutoField ? 'auto-input' : ''} ${isCampoObligatorio && puestoStatus === 'abierto' ? 'input-obligatorio' : ''}`}
+                            className={`${isAutoField ? 'auto-input' : ''} ${isCampoObligatorio ? 'input-obligatorio' : ''}`}
                           />
                         )}
                       </div>
