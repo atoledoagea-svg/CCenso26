@@ -22,6 +22,7 @@ interface SheetData {
 interface Permission {
   email: string
   allowedIds: string[]
+  assignedSheet?: string
 }
 
 export default function Home() {
@@ -47,6 +48,11 @@ export default function Home() {
   const [filterRelevado, setFilterRelevado] = useState<'todos' | 'relevados' | 'no_relevados'>('todos')
   const [showStats, setShowStats] = useState(false)
   
+  // Stats by sheets states (for admin)
+  const [allSheetsStats, setAllSheetsStats] = useState<{ [sheetName: string]: any[][] }>({})
+  const [statsSelectedSheet, setStatsSelectedSheet] = useState<string>('Total')
+  const [loadingStats, setLoadingStats] = useState(false)
+  
   // Admin panel states
   const [showPermissionsPanel, setShowPermissionsPanel] = useState(false)
   const [allPermissions, setAllPermissions] = useState<Permission[]>([])
@@ -55,12 +61,30 @@ export default function Home() {
   const [savingPermissions, setSavingPermissions] = useState(false)
   const [newUserEmail, setNewUserEmail] = useState('')
   
+  // Admin sidebar state
+  const [showAdminSidebar, setShowAdminSidebar] = useState(false)
+  const [adminSidebarTab, setAdminSidebarTab] = useState<'hojas' | 'usuarios' | 'stats' | 'reportes'>('hojas')
+  
+  // Sheets assignment states
+  const [availableSheets, setAvailableSheets] = useState<string[]>([])
+  const [loadingSheets, setLoadingSheets] = useState(false)
+  const [assignmentMode, setAssignmentMode] = useState<'ids' | 'sheet'>('ids')
+  const [selectedSheet, setSelectedSheet] = useState<string>('')
+  const [loadingSheetIds, setLoadingSheetIds] = useState(false)
+  
+  // Admin sheet filter state
+  const [adminSelectedSheet, setAdminSelectedSheet] = useState<string>('')
+  
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 50
   
   // Puesto Activo/Cerrado state
   const [puestoStatus, setPuestoStatus] = useState<'abierto' | 'cerrado' | 'no_encontrado' | 'zona_peligrosa' | ''>('')
+  
+  // Autocomplete dropdown states
+  const [openAutocomplete, setOpenAutocomplete] = useState<string | null>(null)
+  const [autocompleteFilter, setAutocompleteFilter] = useState<{ [key: string]: string }>({})
 
   const CLIENT_ID = '549677208908-9h6q933go4ss870pbq8gd8gaae75k338.apps.googleusercontent.com'
   const API_KEY = 'AIzaSyCJUD23abF8LcZPp7e8eiK0D5IfFoRCxUc'
@@ -107,12 +131,15 @@ export default function Home() {
     return () => {}
   }, [])
 
-  const loadSheetData = useCallback(async (token: string) => {
+  const loadSheetData = useCallback(async (token: string, sheetName: string = '') => {
     setLoadingData(true)
     setError(null)
     
     try {
-      const response = await fetch('/api/data', {
+      // Si se especifica una hoja, agregarla como parámetro
+      const url = sheetName ? `/api/data?sheet=${encodeURIComponent(sheetName)}` : '/api/data'
+      
+      const response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -128,6 +155,7 @@ export default function Home() {
       
       if (data.permissions?.isAdmin) {
         loadPermissions(token)
+        loadAvailableSheets(token)
       }
     } catch (err: any) {
       setError(err.message)
@@ -153,6 +181,54 @@ export default function Home() {
     } catch (err) {
       console.error('Error cargando permisos:', err)
     }
+  }
+
+  const loadAvailableSheets = async (token: string) => {
+    setLoadingSheets(true)
+    try {
+      const response = await fetch('/api/sheets', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        if (data.sheets) {
+          setAvailableSheets(data.sheets)
+        }
+      }
+    } catch (err) {
+      console.error('Error cargando hojas:', err)
+    } finally {
+      setLoadingSheets(false)
+    }
+  }
+
+  const loadSheetIds = async (sheetName: string): Promise<string[]> => {
+    if (!accessToken) return []
+    
+    setLoadingSheetIds(true)
+    try {
+      const response = await fetch('/api/sheets', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ sheetName })
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        return data.ids || []
+      }
+    } catch (err) {
+      console.error('Error cargando IDs de hoja:', err)
+    } finally {
+      setLoadingSheetIds(false)
+    }
+    return []
   }
 
   function handleAuthClick() {
@@ -236,6 +312,8 @@ export default function Home() {
       setEditedValues([])
       setOriginalValues([])
       setPuestoStatus('')
+      setOpenAutocomplete(null)
+      setAutocompleteFilter({})
     }
   }
 
@@ -451,6 +529,8 @@ export default function Home() {
       setSheetData({ ...sheetData, data: newData })
       setEditingRow(null)
       setEditedValues([])
+      setOpenAutocomplete(null)
+      setAutocompleteFilter({})
     } catch (err: any) {
       alert('Error: ' + err.message)
     } finally {
@@ -458,7 +538,7 @@ export default function Home() {
     }
   }
 
-  const handleSavePermissions = async (email: string, ids: string[]) => {
+  const handleSavePermissions = async (email: string, ids: string[], sheetName: string = '') => {
     if (!accessToken) return
     
     setSavingPermissions(true)
@@ -471,7 +551,8 @@ export default function Home() {
         },
         body: JSON.stringify({
           email: email.trim(),
-          allowedIds: ids
+          allowedIds: ids,
+          assignedSheet: sheetName
         })
       })
       
@@ -621,44 +702,263 @@ export default function Home() {
     return results
   }
 
-  // Descargar estadísticas como CSV/Excel
-  const downloadStatsAsExcel = () => {
-    const stats = getFieldStats()
-    if (stats.length === 0) return
+  // Cargar estadísticas de todas las hojas (solo admin)
+  const loadAllSheetsStats = async () => {
+    if (!accessToken || !sheetData?.permissions?.isAdmin) return
     
-    // Obtener conteo de relevados
-    const { relevadorIndex } = getAutoFillIndexes()
-    const totalRelevados = sheetData?.data.filter(row => {
+    setLoadingStats(true)
+    try {
+      const response = await fetch('/api/stats', {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`
+        }
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        setAllSheetsStats(data.sheets || {})
+      }
+    } catch (error) {
+      console.error('Error cargando estadísticas:', error)
+    } finally {
+      setLoadingStats(false)
+    }
+  }
+
+  // Calcular estadísticas para una hoja específica o el total
+  const getFieldStatsForSheet = (sheetName: string) => {
+    let dataToAnalyze: any[][] = []
+    let headersToUse: string[] = []
+    
+    if (sheetName === 'Total') {
+      // Combinar todas las hojas excepto "Hoja 1"
+      const sheetNames = Object.keys(allSheetsStats).filter(name => name !== 'Hoja 1')
+      
+      if (sheetNames.length > 0) {
+        // Usar los headers de la primera hoja disponible
+        const firstSheet = sheetNames[0]
+        const firstData = allSheetsStats[firstSheet]
+        if (firstData && firstData.length > 0) {
+          headersToUse = firstData[0] as string[]
+          
+          // Combinar datos de todas las hojas (sin headers)
+          sheetNames.forEach(name => {
+            const sheetData = allSheetsStats[name]
+            if (sheetData && sheetData.length > 1) {
+              dataToAnalyze = dataToAnalyze.concat(sheetData.slice(1))
+            }
+          })
+        }
+      }
+    } else {
+      // Datos de una hoja específica
+      const sheetData = allSheetsStats[sheetName]
+      if (sheetData && sheetData.length > 0) {
+        headersToUse = sheetData[0] as string[]
+        dataToAnalyze = sheetData.slice(1)
+      }
+    }
+    
+    if (headersToUse.length === 0 || dataToAnalyze.length === 0) {
+      return { stats: [], total: 0, relevados: 0, pendientes: 0 }
+    }
+    
+    const headersLower = headersToUse.map(h => String(h).toLowerCase().trim())
+    const results: { fieldName: string; data: { label: string; count: number; color: string }[] }[] = []
+    
+    // Encontrar índice de "Relevado por:"
+    const relevadorIndex = headersLower.findIndex(h => 
+      h === 'relevado por:' || h === 'relevador' || h === 'relevado por'
+    )
+    
+    // Filtrar solo filas relevadas
+    const relevadosData = dataToAnalyze.filter(row => {
       if (relevadorIndex === -1) return false
       return String(row[relevadorIndex] || '').trim() !== ''
-    }).length || 0
+    })
+    
+    // Campos a analizar
+    const fieldsToAnalyze = [
+      'paquete digital',
+      'tipo de local',
+      'estado kiosco',
+      'competencia',
+      'venta de productos no editoriales',
+      'venta productos no editoriales',
+      'suscripciones',
+      'mayor venta',
+      'utiliza parada online',
+      'utiliza parada online?',
+      'reparto'
+    ]
+    
+    // Colores para gráficos
+    const colors = [
+      '#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6',
+      '#EC4899', '#06B6D4', '#84CC16', '#F97316', '#6366F1',
+      '#14B8A6', '#A855F7', '#F43F5E', '#22D3EE', '#FB923C'
+    ]
+    
+    headersLower.forEach((header, idx) => {
+      if (fieldsToAnalyze.some(f => header.includes(f))) {
+        const counts: { [value: string]: number } = {}
+        
+        relevadosData.forEach(row => {
+          const value = String(row[idx] || '').trim()
+          if (value) {
+            const normalizedValue = value.charAt(0).toUpperCase() + value.slice(1).toLowerCase()
+            counts[normalizedValue] = (counts[normalizedValue] || 0) + 1
+          }
+        })
+        
+        const entries = Object.entries(counts)
+          .map(([label, count], i) => ({
+            label,
+            count,
+            color: colors[i % colors.length]
+          }))
+          .sort((a, b) => b.count - a.count)
+        
+        if (entries.length > 0) {
+          results.push({
+            fieldName: headersToUse[idx],
+            data: entries
+          })
+        }
+      }
+    })
+    
+    const total = dataToAnalyze.length
+    const relevados = relevadosData.length
+    const pendientes = total - relevados
+    
+    return { stats: results, total, relevados, pendientes }
+  }
+
+  // Descargar estadísticas como CSV/Excel
+  const downloadStatsAsExcel = () => {
+    let csvContent = '\uFEFF' // BOM para UTF-8 en Excel
+    
+    // Determinar si usar estadísticas por hoja (admin) o las normales
+    const isAdminWithSheetStats = sheetData?.permissions?.isAdmin && Object.keys(allSheetsStats).length > 0
+    
+    if (isAdminWithSheetStats) {
+      // Descargar estadísticas de la hoja seleccionada en el modal
+      const { stats, total, relevados, pendientes } = getFieldStatsForSheet(statsSelectedSheet)
+      
+      if (stats.length === 0) return
+      
+      const sheetLabel = statsSelectedSheet === 'Total' ? 'Total (todas las hojas)' : statsSelectedSheet
+      
+      csvContent += 'ESTADÍSTICAS DE PDV RELEVADOS\n'
+      csvContent += `Hoja:,${sheetLabel}\n`
+      csvContent += `Fecha de generación:,${new Date().toLocaleDateString('es-AR')}\n`
+      csvContent += `Total PDV:,${total}\n`
+      csvContent += `PDV Relevados:,${relevados}\n`
+      csvContent += `PDV Pendientes:,${pendientes}\n`
+      csvContent += `Progreso:,${total > 0 ? Math.round((relevados / total) * 100) : 0}%\n`
+      csvContent += '\n'
+      
+      stats.forEach(fieldStat => {
+        const fieldTotal = fieldStat.data.reduce((sum, d) => sum + d.count, 0)
+        
+        csvContent += `${fieldStat.fieldName}\n`
+        csvContent += 'Opción,Cantidad,Porcentaje\n'
+        
+        fieldStat.data.forEach(d => {
+          const percent = Math.round((d.count / fieldTotal) * 100)
+          const label = d.label.includes(',') ? `"${d.label}"` : d.label
+          csvContent += `${label},${d.count},${percent}%\n`
+        })
+        
+        csvContent += `Total,${fieldTotal},100%\n`
+        csvContent += '\n'
+      })
+      
+      const safeSheetName = statsSelectedSheet.replace(/[^a-zA-Z0-9]/g, '_')
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+      const link = document.createElement('a')
+      const url = URL.createObjectURL(blob)
+      link.setAttribute('href', url)
+      link.setAttribute('download', `Estadisticas_${safeSheetName}_${new Date().toISOString().split('T')[0]}.csv`)
+      link.style.visibility = 'hidden'
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+    } else {
+      // Estadísticas normales (no admin)
+      const stats = getFieldStats()
+      if (stats.length === 0) return
+      
+      const { relevadorIndex } = getAutoFillIndexes()
+      const totalRelevados = sheetData?.data.filter(row => {
+        if (relevadorIndex === -1) return false
+        return String(row[relevadorIndex] || '').trim() !== ''
+      }).length || 0
+      
+      csvContent += 'ESTADÍSTICAS DE PDV RELEVADOS\n'
+      csvContent += `Fecha de generación:,${new Date().toLocaleDateString('es-AR')}\n`
+      csvContent += `Total PDV:,${sheetData?.data.length || 0}\n`
+      csvContent += `PDV Relevados:,${totalRelevados}\n`
+      csvContent += `PDV Pendientes:,${(sheetData?.data.length || 0) - totalRelevados}\n`
+      csvContent += '\n'
+      
+      stats.forEach(fieldStat => {
+        const total = fieldStat.data.reduce((sum, d) => sum + d.count, 0)
+        
+        csvContent += `${fieldStat.fieldName}\n`
+        csvContent += 'Opción,Cantidad,Porcentaje\n'
+        
+        fieldStat.data.forEach(d => {
+          const percent = Math.round((d.count / total) * 100)
+          const label = d.label.includes(',') ? `"${d.label}"` : d.label
+          csvContent += `${label},${d.count},${percent}%\n`
+        })
+        
+        csvContent += `Total,${total},100%\n`
+        csvContent += '\n'
+      })
+      
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+      const link = document.createElement('a')
+      const url = URL.createObjectURL(blob)
+      link.setAttribute('href', url)
+      link.setAttribute('download', `Estadisticas_PDV_${new Date().toISOString().split('T')[0]}.csv`)
+      link.style.visibility = 'hidden'
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+    }
+  }
+
+  // Descargar reporte de la hoja actual como Excel/CSV
+  const downloadSheetReport = () => {
+    if (!sheetData || !sheetData.headers || sheetData.data.length === 0) return
     
     let csvContent = '\uFEFF' // BOM para UTF-8 en Excel
     
-    // Título y resumen
-    csvContent += 'ESTADÍSTICAS DE PDV RELEVADOS\n'
-    csvContent += `Fecha de generación:,${new Date().toLocaleDateString('es-AR')}\n`
-    csvContent += `Total PDV:,${sheetData?.data.length || 0}\n`
-    csvContent += `PDV Relevados:,${totalRelevados}\n`
-    csvContent += `PDV Pendientes:,${(sheetData?.data.length || 0) - totalRelevados}\n`
-    csvContent += '\n'
+    // Nombre de la hoja para el archivo
+    const sheetName = adminSelectedSheet || 'Hoja_1'
+    const safeSheetName = sheetName.replace(/[^a-zA-Z0-9]/g, '_')
     
-    // Datos de cada campo
-    stats.forEach(fieldStat => {
-      const total = fieldStat.data.reduce((sum, d) => sum + d.count, 0)
-      
-      csvContent += `${fieldStat.fieldName}\n`
-      csvContent += 'Opción,Cantidad,Porcentaje\n'
-      
-      fieldStat.data.forEach(d => {
-        const percent = Math.round((d.count / total) * 100)
-        // Escapar comas en las etiquetas
-        const label = d.label.includes(',') ? `"${d.label}"` : d.label
-        csvContent += `${label},${d.count},${percent}%\n`
+    // Agregar headers
+    const escapedHeaders = sheetData.headers.map(h => {
+      const value = String(h || '')
+      return value.includes(',') || value.includes('"') || value.includes('\n') 
+        ? `"${value.replace(/"/g, '""')}"` 
+        : value
+    })
+    csvContent += escapedHeaders.join(',') + '\n'
+    
+    // Agregar datos
+    sheetData.data.forEach(row => {
+      const escapedRow = row.map((cell: any) => {
+        const value = String(cell || '')
+        return value.includes(',') || value.includes('"') || value.includes('\n') 
+          ? `"${value.replace(/"/g, '""')}"` 
+          : value
       })
-      
-      csvContent += `Total,${total},100%\n`
-      csvContent += '\n'
+      csvContent += escapedRow.join(',') + '\n'
     })
     
     // Crear y descargar el archivo
@@ -666,7 +966,7 @@ export default function Home() {
     const link = document.createElement('a')
     const url = URL.createObjectURL(blob)
     link.setAttribute('href', url)
-    link.setAttribute('download', `Estadisticas_PDV_${new Date().toISOString().split('T')[0]}.csv`)
+    link.setAttribute('download', `Reporte_${safeSheetName}_${new Date().toISOString().split('T')[0]}.csv`)
     link.style.visibility = 'hidden'
     document.body.appendChild(link)
     link.click()
@@ -1070,6 +1370,346 @@ export default function Home() {
                       'No se encuentra el puesto'
                     ]
                     
+                    // Detectar si es el campo Partido
+                    const isPartidoField = headerLower === 'partido' || headerLower === 'partido:'
+                    
+                    const partidoOptions = [
+                      'Almirante Brown',
+                      'Avellaneda',
+                      'Berazategui',
+                      'CABA',
+                      'Escobar',
+                      'Esteban Echeverría',
+                      'Ezeiza',
+                      'Florencio Varela',
+                      'Hurlingham',
+                      'Ituzaingó',
+                      'Jose C Paz',
+                      'La Matanza',
+                      'Lanús',
+                      'Lomas de Zamora',
+                      'Malvinas Argentinas',
+                      'Merlo',
+                      'Moreno',
+                      'Morón',
+                      'Pilar',
+                      'Presidente Perón',
+                      'Quilmes',
+                      'San Fernando',
+                      'San Isidro',
+                      'San Martín',
+                      'San Miguel',
+                      'San Vicente',
+                      'Tigre',
+                      'Tres de Febrero',
+                      'Vicente López'
+                    ]
+                    
+                    // Detectar si es el campo Localidad/Barrio
+                    const isLocalidadField = headerLower === 'localidad' || headerLower === 'localidad:' || 
+                                             headerLower === 'barrio' || headerLower === 'barrio:' ||
+                                             headerLower === 'localidad/barrio' || headerLower === 'localidad/barrio:' ||
+                                             headerLower === 'localidad / barrio' || headerLower === 'localidad / barrio:'
+                    
+                    // Mapeo de localidades/barrios por partido
+                    const localidadesPorPartido: { [key: string]: string[] } = {
+                      'Almirante Brown': [
+                        'Adrogué',
+                        'Burzaco',
+                        'Claypole',
+                        'Don Orione',
+                        'Glew',
+                        'José Marmol',
+                        'Longchamps',
+                        'Malvinas Argentinas',
+                        'Ministro Rivadavia',
+                        'Rafael Calzada',
+                        'San Francisco Solano'
+                      ],
+                      'Avellaneda': [
+                        'Avellaneda',
+                        'Crucecita',
+                        'Dock Sud',
+                        'Gerli',
+                        'Piñeyro',
+                        'Sarandí',
+                        'Villa Domínico',
+                        'Wilde'
+                      ],
+                      'Berazategui': [
+                        'Berazategui',
+                        'El Pato',
+                        'Guillermo Hudson',
+                        'Gutiérrez',
+                        'Pereyra',
+                        'Plátanos',
+                        'Ranelagh',
+                        'Sourigues',
+                        'Villa España'
+                      ],
+                      'CABA': [
+                        'Agronomía',
+                        'Almagro',
+                        'Balvanera',
+                        'Barracas',
+                        'Belgrano',
+                        'Boedo',
+                        'Caballito',
+                        'Chacarita',
+                        'Coghlan',
+                        'Colegiales',
+                        'Constitución',
+                        'Flores',
+                        'Floresta',
+                        'La Boca',
+                        'La Paternal',
+                        'Liniers',
+                        'Mataderos',
+                        'Monte Castro',
+                        'Montserrat',
+                        'Nueva Pompeya',
+                        'Núñez',
+                        'Palermo',
+                        'Parque Avellaneda',
+                        'Parque Chacabuco',
+                        'Parque Chas',
+                        'Parque Patricios',
+                        'Puerto Madero',
+                        'Recoleta',
+                        'Retiro',
+                        'Saavedra',
+                        'San Cristóbal',
+                        'San Nicolás',
+                        'San Telmo',
+                        'Velez Sarsfield',
+                        'Versalles',
+                        'Villa Crespo',
+                        'Villa Del Parque',
+                        'Villa Devoto',
+                        'Villa General Mitre',
+                        'Villa Lugano',
+                        'Villa Luro',
+                        'Villa Ortúzar',
+                        'Villa Pueyrredon',
+                        'Villa Real',
+                        'Villa Riachuelo',
+                        'Villa Santa Rita',
+                        'Villa Soldati',
+                        'Villa Urquiza'
+                      ],
+                      'Escobar': [
+                        'Escobar',
+                        'Garin',
+                        'Ingeniero Maschiwitz',
+                        'Maquinista Savio',
+                        'Matheu'
+                      ],
+                      'Esteban Echeverría': [
+                        '9 de Abril',
+                        'El Jagüel',
+                        'Luis Guillón',
+                        'Monte Grande'
+                      ],
+                      'Ezeiza': [
+                        'Canning',
+                        'Carlos Spegazzini',
+                        'Ezeiza',
+                        'La Unión',
+                        'Tristán Suárez'
+                      ],
+                      'Florencio Varela': [
+                        'Bosques',
+                        'Florencio Varela',
+                        'Gobernador Costa',
+                        'Ingeniero Allan',
+                        'La Capilla',
+                        'Villa Brown',
+                        'Villa San Luis',
+                        'Villa Santa Rosa',
+                        'Villa Vattone',
+                        'Zeballos'
+                      ],
+                      'Hurlingham': [
+                        'Hurlingham',
+                        'Villa Tesei',
+                        'William Morris'
+                      ],
+                      'Ituzaingó': [
+                        'Ituzaingó',
+                        'Parque Leloir',
+                        'Villa Udaondo'
+                      ],
+                      'Jose C Paz': [
+                        'Jose C Paz'
+                      ],
+                      'La Matanza': [
+                        '20 de Junio',
+                        'Aldo Bonzi',
+                        'Ciudad Evita',
+                        'Gonzalez Catan',
+                        'Isidro Casanova',
+                        'La Tablada',
+                        'Laferrere',
+                        'Lomas del Mirador',
+                        'Rafael Castillo',
+                        'Ramos Mejía',
+                        'San Justo',
+                        'Tapiales',
+                        'Villa Celina',
+                        'Villa Luzuriaga',
+                        'Villa Madero',
+                        'Virrey del Pino'
+                      ],
+                      'Lanús': [
+                        'Gerli',
+                        'Lanús Este',
+                        'Lanús Oeste',
+                        'Monte Chingolo',
+                        'Remedios de Escalada',
+                        'Valentín Alsina',
+                        'Villa Caraza',
+                        'Villa Diamante',
+                        'Villa Industriales'
+                      ],
+                      'Lomas de Zamora': [
+                        'Banfield',
+                        'Ingeniero Budge',
+                        'Llavallol',
+                        'Lomas de Zamora',
+                        'Temperley',
+                        'Turdera',
+                        'Villa Centenario',
+                        'Villa Fiorito'
+                      ],
+                      'Malvinas Argentinas': [
+                        'Grand Bourg',
+                        'Los Polvorines',
+                        'Malvinas Argentinas',
+                        'Sourdeaux',
+                        'Tortuguitas',
+                        'Villa De Mayo'
+                      ],
+                      'Merlo': [
+                        'Libertad',
+                        'Mariano Acosta',
+                        'Merlo',
+                        'Parque San Martín',
+                        'Pontevedra',
+                        'San Antonio de Padua'
+                      ],
+                      'Moreno': [
+                        'Cuartel V',
+                        'Francisco Alvarez',
+                        'La Reja',
+                        'Moreno',
+                        'Paso Del Rey',
+                        'Trujui'
+                      ],
+                      'Morón': [
+                        'Castelar',
+                        'El Palomar',
+                        'Haedo',
+                        'Morón',
+                        'Villa Sarmiento'
+                      ],
+                      'Pilar': [
+                        'Del Viso',
+                        'Derqui',
+                        'Manuel Alberti',
+                        'Pilar',
+                        'Villa Rosa'
+                      ],
+                      'Presidente Perón': [
+                        'Guernica',
+                        'Numancia'
+                      ],
+                      'Quilmes': [
+                        'Bernal',
+                        'Bernal Oeste',
+                        'Don Bosco',
+                        'Ezpeleta',
+                        'Ezpeleta Oeste',
+                        'Quilmes',
+                        'Quilmes Oeste',
+                        'Villa La Florida'
+                      ],
+                      'San Fernando': [
+                        'San Fernando',
+                        'Victoria',
+                        'Virreyes'
+                      ],
+                      'San Isidro': [
+                        'Acassuso',
+                        'Beccar',
+                        'Boulogne',
+                        'Martínez',
+                        'San Isidro',
+                        'Villa Adelina'
+                      ],
+                      'San Martín': [
+                        'Billinghurst',
+                        'José León Suárez',
+                        'San Andrés',
+                        'San Martín',
+                        'Villa Ballester',
+                        'Villa Lynch',
+                        'Villa Maipú'
+                      ],
+                      'San Miguel': [
+                        'Bella Vista',
+                        'Campo de Mayo',
+                        'Muñiz',
+                        'San Miguel'
+                      ],
+                      'San Vicente': [
+                        'Alejandro Korn',
+                        'Domselaar',
+                        'San Vicente'
+                      ],
+                      'Tigre': [
+                        'Benavidez',
+                        'Don Torcuato',
+                        'El Talar',
+                        'General Pacheco',
+                        'Ricardo Rojas',
+                        'Rincon de Milberg',
+                        'Tigre'
+                      ],
+                      'Tres de Febrero': [
+                        'Caseros',
+                        'Ciudadela',
+                        'El Libertador',
+                        'Jose Ingenieros',
+                        'Loma Hermosa',
+                        'Martín Coronado',
+                        'Pablo Podestá',
+                        'Saenz Peña',
+                        'Santos Lugares',
+                        'Villa Bosch',
+                        'Villa Raffo'
+                      ],
+                      'Vicente López': [
+                        'Carapachay',
+                        'Florida',
+                        'Florida Oeste',
+                        'La Lucila',
+                        'Munro',
+                        'Olivos',
+                        'Vicente López',
+                        'Villa Martelli'
+                      ]
+                    }
+                    
+                    // Obtener el índice del campo Partido para leer su valor
+                    const partidoIndex = sheetData.headers.findIndex(h => {
+                      const hLower = h.toLowerCase().trim()
+                      return hLower === 'partido' || hLower === 'partido:'
+                    })
+                    const selectedPartido = partidoIndex !== -1 ? (editedValues[partidoIndex] || '') : ''
+                    
+                    // Obtener localidades según el partido seleccionado
+                    const localidadOptions = localidadesPorPartido[selectedPartido] || []
+                    
                     let displayValue = editedValues[idx] || ''
                     let placeholder = ''
                     
@@ -1103,7 +1743,119 @@ export default function Home() {
                             </span>
                           )}
                         </label>
-                        {isEstadoKioscoField || isDiasAtencionField || isHorarioField || isEscaparateField || isUbicacionField || isFachadaField || isVentaNoEditorialField || isRepartoField || isSuscripcionesField || isParadaOnlineField || isMayorVentaField || isDistribuidoraField ? (() => {
+                        {isPartidoField || isLocalidadField ? (() => {
+                          const fieldOptions = isPartidoField ? partidoOptions : localidadOptions
+                          const currentValue = editedValues[idx] || ''
+                          const filterKey = `field_${idx}`
+                          const filterText = autocompleteFilter[filterKey] ?? currentValue
+                          const isOpen = openAutocomplete === filterKey
+                          
+                          // Filtrar opciones basadas en el texto ingresado
+                          const filteredOptions = fieldOptions.filter(opt => 
+                            opt.toLowerCase().includes(filterText.toLowerCase())
+                          )
+                          
+                          // Mensaje especial si es Localidad y no hay partido seleccionado
+                          const noPartidoSelected = isLocalidadField && !selectedPartido
+                          
+                          // Obtener el índice del campo Localidad para limpiarlo cuando cambie el partido
+                          const localidadIndex = sheetData.headers.findIndex(h => {
+                            const hLower = h.toLowerCase().trim()
+                            return hLower === 'localidad' || hLower === 'localidad:' || 
+                                   hLower === 'barrio' || hLower === 'barrio:' ||
+                                   hLower === 'localidad/barrio' || hLower === 'localidad/barrio:' ||
+                                   hLower === 'localidad / barrio' || hLower === 'localidad / barrio:'
+                          })
+                          
+                          return (
+                            <div className="autocomplete-container">
+                              <input
+                                type="text"
+                                value={filterText}
+                                placeholder={
+                                  isPartidoField 
+                                    ? 'Escribir para buscar partido...' 
+                                    : noPartidoSelected 
+                                      ? 'Primero seleccione un partido...' 
+                                      : 'Escribir para buscar localidad...'
+                                }
+                                onChange={(e) => {
+                                  if (noPartidoSelected) return // No permitir escribir si no hay partido
+                                  const newFilter = { ...autocompleteFilter, [filterKey]: e.target.value }
+                                  setAutocompleteFilter(newFilter)
+                                  setOpenAutocomplete(filterKey)
+                                }}
+                                onFocus={() => {
+                                  if (!noPartidoSelected) {
+                                    setOpenAutocomplete(filterKey)
+                                  }
+                                }}
+                                onBlur={() => {
+                                  // Delay para permitir click en opciones
+                                  setTimeout(() => {
+                                    if (openAutocomplete === filterKey) {
+                                      setOpenAutocomplete(null)
+                                      // Si el texto no coincide exactamente con una opción, mantener el valor anterior
+                                      if (!fieldOptions.includes(filterText) && filterText !== currentValue) {
+                                        const newFilter = { ...autocompleteFilter, [filterKey]: currentValue }
+                                        setAutocompleteFilter(newFilter)
+                                      }
+                                    }
+                                  }, 200)
+                                }}
+                                className={`autocomplete-input ${isCampoObligatorio ? 'input-obligatorio' : ''} ${noPartidoSelected ? 'autocomplete-disabled' : ''}`}
+                                disabled={isCampoCerrado || noPartidoSelected}
+                              />
+                              {isOpen && filteredOptions.length > 0 && (
+                                <div className="autocomplete-dropdown">
+                                  {filteredOptions.map((option, optIdx) => (
+                                    <div
+                                      key={optIdx}
+                                      className={`autocomplete-option ${option === currentValue ? 'selected' : ''}`}
+                                      onMouseDown={(e) => {
+                                        e.preventDefault()
+                                        const newValues = [...editedValues]
+                                        newValues[idx] = option
+                                        setEditedValues(newValues)
+                                        const newFilter = { ...autocompleteFilter, [filterKey]: option }
+                                        setAutocompleteFilter(newFilter)
+                                        setOpenAutocomplete(null)
+                                        
+                                        // Si se selecciona un partido, limpiar la localidad si no es válida
+                                        if (isPartidoField && localidadIndex !== -1) {
+                                          const currentLocalidad = newValues[localidadIndex] || ''
+                                          const newLocalidades = localidadesPorPartido[option] || []
+                                          if (currentLocalidad && !newLocalidades.includes(currentLocalidad)) {
+                                            newValues[localidadIndex] = ''
+                                            setEditedValues([...newValues])
+                                            // Limpiar también el filtro de localidad
+                                            const localidadFilterKey = `field_${localidadIndex}`
+                                            const updatedFilter = { ...autocompleteFilter, [filterKey]: option, [localidadFilterKey]: '' }
+                                            setAutocompleteFilter(updatedFilter)
+                                          }
+                                        }
+                                      }}
+                                    >
+                                      {option}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                              {isOpen && filteredOptions.length === 0 && filterText && !noPartidoSelected && (
+                                <div className="autocomplete-dropdown">
+                                  <div className="autocomplete-no-results">
+                                    No se encontraron resultados
+                                  </div>
+                                </div>
+                              )}
+                              {noPartidoSelected && (
+                                <div className="autocomplete-hint">
+                                  ⚠️ Seleccione primero un partido para ver las localidades disponibles
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })() : isEstadoKioscoField || isDiasAtencionField || isHorarioField || isEscaparateField || isUbicacionField || isFachadaField || isVentaNoEditorialField || isRepartoField || isSuscripcionesField || isParadaOnlineField || isMayorVentaField || isDistribuidoraField ? (() => {
                           const currentOptions = isDiasAtencionField ? diasAtencionOptions : isHorarioField ? horarioOptions : isEscaparateField ? escaparateOptions : isUbicacionField ? ubicacionOptions : isFachadaField ? fachadaOptions : isVentaNoEditorialField ? ventaNoEditorialOptions : isRepartoField ? repartoOptions : isSuscripcionesField ? suscripcionesOptions : isParadaOnlineField ? paradaOnlineOptions : isMayorVentaField ? mayorVentaOptions : isDistribuidoraField ? distribuidoraOptions : estadoKioscoOptions
                           const currentValue = editedValues[idx] || ''
                           const valueExistsInOptions = currentOptions.includes(currentValue) || currentValue === ''
@@ -1180,6 +1932,193 @@ export default function Home() {
         )
       })()}
 
+      {/* Admin Sidebar */}
+      {showAdminSidebar && sheetData?.permissions?.isAdmin && (
+        <>
+          <div className="sidebar-overlay" onClick={() => setShowAdminSidebar(false)}></div>
+          <aside className="admin-sidebar">
+            <div className="sidebar-header">
+              <h2>⚙️ Panel Admin</h2>
+              <button className="sidebar-close" onClick={() => setShowAdminSidebar(false)}>×</button>
+            </div>
+            
+            <nav className="sidebar-nav">
+              <button 
+                className={`sidebar-nav-btn ${adminSidebarTab === 'hojas' ? 'active' : ''}`}
+                onClick={() => setAdminSidebarTab('hojas')}
+              >
+                📋 Hojas
+              </button>
+              <button 
+                className={`sidebar-nav-btn ${adminSidebarTab === 'usuarios' ? 'active' : ''}`}
+                onClick={() => setAdminSidebarTab('usuarios')}
+              >
+                👥 Usuarios
+              </button>
+              <button 
+                className={`sidebar-nav-btn ${adminSidebarTab === 'stats' ? 'active' : ''}`}
+                onClick={() => setAdminSidebarTab('stats')}
+              >
+                📊 Estadísticas
+              </button>
+              <button 
+                className={`sidebar-nav-btn ${adminSidebarTab === 'reportes' ? 'active' : ''}`}
+                onClick={() => setAdminSidebarTab('reportes')}
+              >
+                📥 Reportes
+              </button>
+            </nav>
+            
+            <div className="sidebar-content">
+              {/* Pestaña Hojas */}
+              {adminSidebarTab === 'hojas' && (
+                <div className="sidebar-section">
+                  <h3>Seleccionar Hoja</h3>
+                  <div className="sidebar-sheet-list">
+                    <button
+                      className={`sidebar-sheet-btn ${adminSelectedSheet === 'Todos' || adminSelectedSheet === '' ? 'active' : ''}`}
+                      onClick={() => {
+                        setAdminSelectedSheet('Todos')
+                        setCurrentPage(1)
+                        if (accessToken) loadSheetData(accessToken, 'Todos')
+                      }}
+                    >
+                      📊 Todos
+                    </button>
+                    {availableSheets.map((sheet, idx) => (
+                      <button
+                        key={idx}
+                        className={`sidebar-sheet-btn ${adminSelectedSheet === sheet ? 'active' : ''}`}
+                        onClick={() => {
+                          setAdminSelectedSheet(sheet)
+                          setCurrentPage(1)
+                          if (accessToken) loadSheetData(accessToken, sheet)
+                        }}
+                      >
+                        📋 {sheet}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="sidebar-sheet-info">
+                    <span className="info-label">Hoja actual:</span>
+                    <span className="info-value">{adminSelectedSheet || 'Hoja 1'}</span>
+                  </div>
+                  <div className="sidebar-sheet-info">
+                    <span className="info-label">Total registros:</span>
+                    <span className="info-value">{sheetData?.data?.length || 0}</span>
+                  </div>
+                </div>
+              )}
+              
+              {/* Pestaña Usuarios */}
+              {adminSidebarTab === 'usuarios' && (
+                <div className="sidebar-section">
+                  <h3>Gestión de Usuarios</h3>
+                  <p className="sidebar-description">Administra los permisos de acceso de los usuarios.</p>
+                  <button 
+                    className="sidebar-action-btn"
+                    onClick={() => {
+                      setShowAdminSidebar(false)
+                      setShowPermissionsPanel(true)
+                    }}
+                  >
+                    👥 Abrir Panel de Usuarios
+                  </button>
+                  <div className="sidebar-user-summary">
+                    <span className="summary-item">
+                      <strong>{allPermissions.length}</strong> usuarios configurados
+                    </span>
+                  </div>
+                </div>
+              )}
+              
+              {/* Pestaña Estadísticas */}
+              {adminSidebarTab === 'stats' && (
+                <div className="sidebar-section">
+                  <h3>Estadísticas</h3>
+                  <p className="sidebar-description">Visualiza el progreso del relevamiento por hoja.</p>
+                  <button 
+                    className="sidebar-action-btn"
+                    onClick={() => {
+                      setShowAdminSidebar(false)
+                      setShowStats(true)
+                      setStatsSelectedSheet('Total')
+                      loadAllSheetsStats()
+                    }}
+                  >
+                    📊 Ver Estadísticas Completas
+                  </button>
+                  
+                  {/* Mini resumen de stats */}
+                  {Object.keys(allSheetsStats).length > 0 && (
+                    <div className="sidebar-stats-mini">
+                      {Object.keys(allSheetsStats)
+                        .filter(name => name !== 'Hoja 1')
+                        .map(sheetName => {
+                          const data = allSheetsStats[sheetName]
+                          if (!data || data.length <= 1) return null
+                          const headers = data[0] as string[]
+                          const rows = data.slice(1)
+                          const relevadorIdx = headers.findIndex(h => 
+                            String(h).toLowerCase().includes('relevado por')
+                          )
+                          const relevados = relevadorIdx !== -1 
+                            ? rows.filter(r => String(r[relevadorIdx] || '').trim() !== '').length 
+                            : 0
+                          const total = rows.length
+                          const percent = total > 0 ? Math.round((relevados / total) * 100) : 0
+                          
+                          return (
+                            <div key={sheetName} className="mini-stat-item">
+                              <span className="mini-stat-name">{sheetName}</span>
+                              <div className="mini-stat-bar">
+                                <div className="mini-stat-fill" style={{ width: `${percent}%` }}></div>
+                              </div>
+                              <span className="mini-stat-percent">{percent}%</span>
+                            </div>
+                          )
+                        })}
+                    </div>
+                  )}
+                </div>
+              )}
+              
+              {/* Pestaña Reportes */}
+              {adminSidebarTab === 'reportes' && (
+                <div className="sidebar-section">
+                  <h3>Descargar Reportes</h3>
+                  <p className="sidebar-description">Exporta los datos en formato Excel/CSV.</p>
+                  
+                  <div className="sidebar-report-options">
+                    <button 
+                      className="sidebar-report-btn"
+                      onClick={() => downloadSheetReport()}
+                      disabled={!sheetData}
+                    >
+                      📥 Descargar Hoja Actual
+                      <span className="report-hint">{adminSelectedSheet || 'Hoja 1'}</span>
+                    </button>
+                    
+                    <button 
+                      className="sidebar-report-btn"
+                      onClick={() => {
+                        setShowAdminSidebar(false)
+                        setShowStats(true)
+                        setStatsSelectedSheet('Total')
+                        loadAllSheetsStats()
+                      }}
+                    >
+                      📊 Descargar Estadísticas
+                      <span className="report-hint">Desde el panel de stats</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </aside>
+        </>
+      )}
+
       {/* Admin Panel Modal */}
       {showPermissionsPanel && sheetData?.permissions?.isAdmin && (
         <div className="modal-overlay" onClick={() => setShowPermissionsPanel(false)}>
@@ -1241,8 +2180,16 @@ export default function Home() {
                   return (
                     <div key={idx} className="user-card">
                       <div className="user-card-header">
-                        <span className="user-label">Usuario:</span>
-                        <span className="user-card-email">{perm.email}</span>
+                        <div className="user-info">
+                          <span className="user-label">Usuario:</span>
+                          <span className="user-card-email">{perm.email}</span>
+                        </div>
+                        {perm.assignedSheet && (
+                          <div className="assigned-sheet-badge">
+                            <span className="assigned-sheet-label">HOJA ASIGNADA:</span>
+                            <span className="assigned-sheet-name">📋 {perm.assignedSheet}</span>
+                          </div>
+                        )}
                       </div>
                       
                       <div className="stats-boxes">
@@ -1312,7 +2259,7 @@ export default function Home() {
       {/* Statistics Modal */}
       {showStats && sheetData && (
         <div className="modal-overlay" onClick={() => setShowStats(false)}>
-          <div className="stats-panel" onClick={e => e.stopPropagation()}>
+          <div className="stats-panel stats-panel-large" onClick={e => e.stopPropagation()}>
             <div className="stats-header">
               <h2>📊 Estadísticas de PDV Relevados</h2>
               <div className="stats-header-actions">
@@ -1326,90 +2273,221 @@ export default function Home() {
                 <button className="btn-close" onClick={() => setShowStats(false)}>×</button>
               </div>
             </div>
-            <div className="stats-body">
-              <div className="stats-summary">
-                <div className="summary-card">
-                  <span className="summary-number">{sheetData.data.length}</span>
-                  <span className="summary-label">Total PDV</span>
-                </div>
-                <div className="summary-card summary-green">
-                  <span className="summary-number">
-                    {sheetData.data.filter(row => {
-                      const { relevadorIndex } = getAutoFillIndexes()
-                      return relevadorIndex !== -1 && String(row[relevadorIndex] || '').trim() !== ''
-                    }).length}
-                  </span>
-                  <span className="summary-label">Relevados</span>
-                </div>
-                <div className="summary-card summary-orange">
-                  <span className="summary-number">
-                    {sheetData.data.filter(row => {
-                      const { relevadorIndex } = getAutoFillIndexes()
-                      return relevadorIndex === -1 || String(row[relevadorIndex] || '').trim() === ''
-                    }).length}
-                  </span>
-                  <span className="summary-label">Pendientes</span>
-                </div>
+            
+            {/* Tabs de hojas */}
+            {sheetData.permissions?.isAdmin && Object.keys(allSheetsStats).length > 0 && (
+              <div className="stats-tabs">
+                <button
+                  className={`stats-tab ${statsSelectedSheet === 'Total' ? 'active' : ''}`}
+                  onClick={() => setStatsSelectedSheet('Total')}
+                >
+                  📊 Total
+                </button>
+                {Object.keys(allSheetsStats)
+                  .filter(name => name !== 'Hoja 1') // Ocultar Hoja 1
+                  .sort((a, b) => a.localeCompare(b))
+                  .map(sheetName => (
+                    <button
+                      key={sheetName}
+                      className={`stats-tab ${statsSelectedSheet === sheetName ? 'active' : ''}`}
+                      onClick={() => setStatsSelectedSheet(sheetName)}
+                    >
+                      📋 {sheetName}
+                    </button>
+                  ))
+                }
               </div>
-              
-              <div className="charts-grid">
-                {getFieldStats().map((fieldStat, idx) => {
-                  const total = fieldStat.data.reduce((sum, d) => sum + d.count, 0)
-                  let cumulativePercent = 0
-                  
-                  // Calcular gradiente cónico para el gráfico de pastel
-                  const gradientStops = fieldStat.data.map(d => {
-                    const percent = (d.count / total) * 100
-                    const start = cumulativePercent
-                    cumulativePercent += percent
-                    return `${d.color} ${start}% ${cumulativePercent}%`
-                  }).join(', ')
+            )}
+            
+            <div className="stats-body">
+              {loadingStats ? (
+                <div className="stats-loading">
+                  <div className="loading-spinner"></div>
+                  <p>Cargando estadísticas de todas las hojas...</p>
+                </div>
+              ) : sheetData.permissions?.isAdmin && Object.keys(allSheetsStats).length > 0 ? (
+                // Vista de admin con estadísticas por hoja
+                (() => {
+                  const { stats, total, relevados, pendientes } = getFieldStatsForSheet(statsSelectedSheet)
                   
                   return (
-                    <div key={idx} className="chart-card">
-                      <h3 className="chart-title">{fieldStat.fieldName}</h3>
-                      <div className="chart-content">
-                        <div 
-                          className="pie-chart"
-                          style={{ 
-                            background: `conic-gradient(${gradientStops})`
-                          }}
-                        >
-                          <div className="pie-center">
-                            <span className="pie-total">{total}</span>
-                            <span className="pie-label">Total</span>
-                          </div>
+                    <>
+                      <div className="stats-sheet-title">
+                        {statsSelectedSheet === 'Total' 
+                          ? '📊 Estadísticas combinadas de todas las hojas'
+                          : `📋 Estadísticas de: ${statsSelectedSheet}`
+                        }
+                      </div>
+                      
+                      <div className="stats-summary">
+                        <div className="summary-card">
+                          <span className="summary-number">{total}</span>
+                          <span className="summary-label">Total PDV</span>
                         </div>
-                        <div className="chart-legend">
-                          {fieldStat.data.slice(0, 8).map((d, i) => (
-                            <div key={i} className="legend-item">
-                              <span 
-                                className="legend-color" 
-                                style={{ background: d.color }}
-                              ></span>
-                              <span className="legend-label">{d.label}</span>
-                              <span className="legend-count">{d.count}</span>
-                              <span className="legend-percent">
-                                ({Math.round((d.count / total) * 100)}%)
-                              </span>
-                            </div>
-                          ))}
-                          {fieldStat.data.length > 8 && (
-                            <div className="legend-more">
-                              +{fieldStat.data.length - 8} más...
-                            </div>
-                          )}
+                        <div className="summary-card summary-green">
+                          <span className="summary-number">{relevados}</span>
+                          <span className="summary-label">Relevados</span>
+                        </div>
+                        <div className="summary-card summary-orange">
+                          <span className="summary-number">{pendientes}</span>
+                          <span className="summary-label">Pendientes</span>
+                        </div>
+                        <div className="summary-card summary-blue">
+                          <span className="summary-number">
+                            {total > 0 ? Math.round((relevados / total) * 100) : 0}%
+                          </span>
+                          <span className="summary-label">Progreso</span>
                         </div>
                       </div>
-                    </div>
+                      
+                      <div className="charts-grid">
+                        {stats.map((fieldStat, idx) => {
+                          const fieldTotal = fieldStat.data.reduce((sum, d) => sum + d.count, 0)
+                          let cumulativePercent = 0
+                          
+                          const gradientStops = fieldStat.data.map(d => {
+                            const percent = (d.count / fieldTotal) * 100
+                            const start = cumulativePercent
+                            cumulativePercent += percent
+                            return `${d.color} ${start}% ${cumulativePercent}%`
+                          }).join(', ')
+                          
+                          return (
+                            <div key={idx} className="chart-card">
+                              <h3 className="chart-title">{fieldStat.fieldName}</h3>
+                              <div className="chart-content">
+                                <div 
+                                  className="pie-chart"
+                                  style={{ 
+                                    background: `conic-gradient(${gradientStops})`
+                                  }}
+                                >
+                                  <div className="pie-center">
+                                    <span className="pie-total">{fieldTotal}</span>
+                                    <span className="pie-label">Total</span>
+                                  </div>
+                                </div>
+                                <div className="chart-legend">
+                                  {fieldStat.data.slice(0, 8).map((d, i) => (
+                                    <div key={i} className="legend-item">
+                                      <span 
+                                        className="legend-color" 
+                                        style={{ background: d.color }}
+                                      ></span>
+                                      <span className="legend-label">{d.label}</span>
+                                      <span className="legend-count">{d.count}</span>
+                                      <span className="legend-percent">
+                                        ({Math.round((d.count / fieldTotal) * 100)}%)
+                                      </span>
+                                    </div>
+                                  ))}
+                                  {fieldStat.data.length > 8 && (
+                                    <div className="legend-more">
+                                      +{fieldStat.data.length - 8} más...
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                      
+                      {stats.length === 0 && (
+                        <div className="no-stats">
+                          <p>No hay datos suficientes para generar estadísticas</p>
+                        </div>
+                      )}
+                    </>
                   )
-                })}
-              </div>
-              
-              {getFieldStats().length === 0 && (
-                <div className="no-stats">
-                  <p>No hay datos suficientes para generar estadísticas</p>
-                </div>
+                })()
+              ) : (
+                // Vista normal (no admin o sin datos de hojas)
+                <>
+                  <div className="stats-summary">
+                    <div className="summary-card">
+                      <span className="summary-number">{sheetData.data.length}</span>
+                      <span className="summary-label">Total PDV</span>
+                    </div>
+                    <div className="summary-card summary-green">
+                      <span className="summary-number">
+                        {sheetData.data.filter(row => {
+                          const { relevadorIndex } = getAutoFillIndexes()
+                          return relevadorIndex !== -1 && String(row[relevadorIndex] || '').trim() !== ''
+                        }).length}
+                      </span>
+                      <span className="summary-label">Relevados</span>
+                    </div>
+                    <div className="summary-card summary-orange">
+                      <span className="summary-number">
+                        {sheetData.data.filter(row => {
+                          const { relevadorIndex } = getAutoFillIndexes()
+                          return relevadorIndex === -1 || String(row[relevadorIndex] || '').trim() === ''
+                        }).length}
+                      </span>
+                      <span className="summary-label">Pendientes</span>
+                    </div>
+                  </div>
+                  
+                  <div className="charts-grid">
+                    {getFieldStats().map((fieldStat, idx) => {
+                      const total = fieldStat.data.reduce((sum, d) => sum + d.count, 0)
+                      let cumulativePercent = 0
+                      
+                      const gradientStops = fieldStat.data.map(d => {
+                        const percent = (d.count / total) * 100
+                        const start = cumulativePercent
+                        cumulativePercent += percent
+                        return `${d.color} ${start}% ${cumulativePercent}%`
+                      }).join(', ')
+                      
+                      return (
+                        <div key={idx} className="chart-card">
+                          <h3 className="chart-title">{fieldStat.fieldName}</h3>
+                          <div className="chart-content">
+                            <div 
+                              className="pie-chart"
+                              style={{ 
+                                background: `conic-gradient(${gradientStops})`
+                              }}
+                            >
+                              <div className="pie-center">
+                                <span className="pie-total">{total}</span>
+                                <span className="pie-label">Total</span>
+                              </div>
+                            </div>
+                            <div className="chart-legend">
+                              {fieldStat.data.slice(0, 8).map((d, i) => (
+                                <div key={i} className="legend-item">
+                                  <span 
+                                    className="legend-color" 
+                                    style={{ background: d.color }}
+                                  ></span>
+                                  <span className="legend-label">{d.label}</span>
+                                  <span className="legend-count">{d.count}</span>
+                                  <span className="legend-percent">
+                                    ({Math.round((d.count / total) * 100)}%)
+                                  </span>
+                                </div>
+                              ))}
+                              {fieldStat.data.length > 8 && (
+                                <div className="legend-more">
+                                  +{fieldStat.data.length - 8} más...
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                  
+                  {getFieldStats().length === 0 && (
+                    <div className="no-stats">
+                      <p>No hay datos suficientes para generar estadísticas</p>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </div>
@@ -1418,41 +2496,134 @@ export default function Home() {
 
       {/* Edit Permission Modal */}
       {editingPermission && (
-        <div className="modal-overlay" onClick={() => setEditingPermission(null)}>
-          <div className="modal-content modal-small" onClick={e => e.stopPropagation()}>
+        <div className="modal-overlay" onClick={() => {
+          setEditingPermission(null)
+          setAssignmentMode('ids')
+          setSelectedSheet('')
+        }}>
+          <div className="modal-content modal-medium" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
-              <h2>Asignar IDs</h2>
-              <button className="modal-close" onClick={() => setEditingPermission(null)}>×</button>
+              <h2>Asignar PDV</h2>
+              <button className="modal-close" onClick={() => {
+                setEditingPermission(null)
+                setAssignmentMode('ids')
+                setSelectedSheet('')
+              }}>×</button>
             </div>
             <div className="modal-body">
               <p className="modal-user-email">{editingPermission.email}</p>
-              <div className="edit-field">
-                <label>IDs permitidos (separados por coma)</label>
-                <textarea
-                  value={newPermIds}
-                  onChange={(e) => setNewPermIds(e.target.value)}
-                  placeholder="Ej: 1, 10, 5, 8, 99, 112"
-                  rows={4}
-                />
+              
+              {/* Selector de modo de asignación */}
+              <div className="assignment-mode-selector">
+                <label>Modo de asignación:</label>
+                <div className="assignment-mode-buttons">
+                  <button
+                    type="button"
+                    className={`mode-btn ${assignmentMode === 'ids' ? 'active' : ''}`}
+                    onClick={() => setAssignmentMode('ids')}
+                  >
+                    📝 Por IDs
+                  </button>
+                  <button
+                    type="button"
+                    className={`mode-btn ${assignmentMode === 'sheet' ? 'active' : ''}`}
+                    onClick={() => setAssignmentMode('sheet')}
+                  >
+                    📋 Por Hoja
+                  </button>
+                </div>
               </div>
+
+              {assignmentMode === 'ids' ? (
+                <div className="edit-field">
+                  <label>IDs permitidos (separados por coma)</label>
+                  <textarea
+                    value={newPermIds}
+                    onChange={(e) => setNewPermIds(e.target.value)}
+                    placeholder="Ej: 1, 10, 5, 8, 99, 112"
+                    rows={4}
+                  />
+                </div>
+              ) : (
+                <div className="edit-field">
+                  <label>Seleccionar hoja del spreadsheet</label>
+                  {loadingSheets ? (
+                    <div className="loading-sheets">Cargando hojas...</div>
+                  ) : (
+                    <>
+                      <select
+                        value={selectedSheet}
+                        onChange={(e) => setSelectedSheet(e.target.value)}
+                        className="sheet-select"
+                      >
+                        <option value="">-- Seleccionar hoja --</option>
+                        {availableSheets.map((sheet, idx) => (
+                          <option key={idx} value={sheet}>{sheet}</option>
+                        ))}
+                      </select>
+                      {selectedSheet && (
+                        <div className="sheet-info">
+                          <span className="sheet-info-icon">ℹ️</span>
+                          <span>Se asignarán todos los IDs de la hoja "{selectedSheet}" a este usuario.</span>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+              
+              {/* IDs actuales */}
+              {editingPermission.allowedIds.length > 0 && (
+                <div className="current-ids-section">
+                  <label>IDs actuales asignados ({editingPermission.allowedIds.length}):</label>
+                  <div className="current-ids-tags">
+                    {editingPermission.allowedIds.slice(0, 20).map((id, i) => (
+                      <span key={i} className="id-tag-small">{id}</span>
+                    ))}
+                    {editingPermission.allowedIds.length > 20 && (
+                      <span className="id-tag-more">+{editingPermission.allowedIds.length - 20} más</span>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
             <div className="modal-footer">
               <button 
                 className="btn-secondary" 
-                onClick={() => setEditingPermission(null)} 
-                disabled={savingPermissions}
+                onClick={() => {
+                  setEditingPermission(null)
+                  setAssignmentMode('ids')
+                  setSelectedSheet('')
+                }} 
+                disabled={savingPermissions || loadingSheetIds}
               >
                 Cancelar
               </button>
               <button 
                 className="btn-primary" 
-                onClick={() => {
-                  const ids = newPermIds.split(',').map(id => id.trim()).filter(id => id)
-                  handleSavePermissions(editingPermission.email, ids)
+                onClick={async () => {
+                  if (assignmentMode === 'ids') {
+                    const ids = newPermIds.split(',').map(id => id.trim()).filter(id => id)
+                    handleSavePermissions(editingPermission.email, ids, '') // Sin hoja asignada
+                  } else if (assignmentMode === 'sheet' && selectedSheet) {
+                    // Cargar IDs de la hoja seleccionada y guardar la hoja asignada
+                    const sheetIds = await loadSheetIds(selectedSheet)
+                    if (sheetIds.length > 0) {
+                      handleSavePermissions(editingPermission.email, sheetIds, selectedSheet) // Con hoja asignada
+                    } else {
+                      alert('No se encontraron IDs en la hoja seleccionada')
+                      return
+                    }
+                  } else {
+                    alert('Por favor selecciona una hoja')
+                    return
+                  }
+                  setAssignmentMode('ids')
+                  setSelectedSheet('')
                 }}
-                disabled={savingPermissions}
+                disabled={savingPermissions || loadingSheetIds || (assignmentMode === 'sheet' && !selectedSheet)}
               >
-                {savingPermissions ? 'Guardando...' : 'Guardar'}
+                {savingPermissions || loadingSheetIds ? 'Guardando...' : 'Guardar'}
               </button>
             </div>
           </div>
@@ -1473,20 +2644,15 @@ export default function Home() {
         </div>
         <div className="header-right">
           {sheetData?.permissions?.isAdmin && (
-            <>
-              <button 
-                className="btn-stats"
-                onClick={() => setShowStats(true)}
-              >
-                📊 Estadísticas
-              </button>
-              <button 
-                className="btn-admin"
-                onClick={() => setShowPermissionsPanel(true)}
-              >
-                Gestionar Permisos
-              </button>
-            </>
+            <button 
+              className="btn-admin"
+              onClick={() => {
+                setShowAdminSidebar(true)
+                loadAllSheetsStats() // Cargar stats para el mini resumen
+              }}
+            >
+              ⚙️ Panel Admin
+            </button>
           )}
           {/* Contador de PDV relevados para usuarios con IDs asignados */}
           {sheetData && userEmail && sheetData.permissions?.allowedIds && sheetData.permissions.allowedIds.length > 0 && !sheetData.permissions.isAdmin && (() => {
@@ -1558,12 +2724,43 @@ export default function Home() {
               <option value="relevados">✅ Solo relevados</option>
               <option value="no_relevados">⏳ Sin relevar</option>
             </select>
+            {/* Selector de hojas para admin */}
+            {sheetData?.permissions?.isAdmin && availableSheets.length > 0 && (
+              <div className="sheet-filter-group">
+                <label className="sheet-filter-label">Relevamiento:</label>
+                <select
+                  value={adminSelectedSheet || availableSheets[0] || ''}
+                  onChange={(e) => {
+                    setAdminSelectedSheet(e.target.value)
+                    setCurrentPage(1) // Resetear a la primera página al cambiar de hoja
+                    if (accessToken) {
+                      loadSheetData(accessToken, e.target.value)
+                    }
+                  }}
+                  className="sheet-filter-select"
+                  disabled={loadingData}
+                >
+                  <option value="Todos">📊 Todos</option>
+                  {availableSheets.map((sheet, idx) => (
+                    <option key={idx} value={sheet}>{sheet}</option>
+                  ))}
+                </select>
+              </div>
+            )}
             <button 
               className="btn-primary"
-              onClick={() => accessToken && loadSheetData(accessToken)}
+              onClick={() => accessToken && loadSheetData(accessToken, adminSelectedSheet)}
               disabled={loadingData}
             >
               {loadingData ? 'Cargando...' : 'Recargar Datos'}
+            </button>
+            <button 
+              className="btn-download-report"
+              onClick={() => downloadSheetReport()}
+              disabled={loadingData || !sheetData}
+              title="Descargar reporte de la hoja actual"
+            >
+              📥 Descargar Reporte
             </button>
           </div>
           <div className="toolbar-right">

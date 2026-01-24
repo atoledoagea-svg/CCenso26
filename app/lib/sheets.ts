@@ -2,6 +2,7 @@ import { google } from 'googleapis'
 
 const SPREADSHEET_ID = '13Ht_fOQuLHDMNYqKFr3FjedtU9ZkKOp_2_zCOnjHKm8'
 const PERMISSIONS_SHEET_NAME = 'Permisos' // Nombre de la hoja para almacenar permisos
+const DEFAULT_SHEET_NAME = 'Hoja 1' // Nombre de la hoja principal por defecto
 
 /**
  * Obtiene el cliente autenticado de Google Sheets
@@ -33,30 +34,176 @@ export async function getFirstSheetName(accessToken: string): Promise<string> {
 }
 
 /**
- * Obtiene todos los datos del sheet principal
+ * Hojas a ocultar del panel de administración
  */
-export async function getAllData(accessToken: string) {
+const HIDDEN_SHEETS = ['Permisos', 'Actividad', 'Hoja 2']
+
+/**
+ * Obtiene todas las hojas del spreadsheet (excluyendo las ocultas)
+ */
+export async function getAvailableSheets(accessToken: string): Promise<string[]> {
   const sheets = getSheetsClient(accessToken)
+  
+  const response = await sheets.spreadsheets.get({
+    spreadsheetId: SPREADSHEET_ID,
+    fields: 'sheets.properties.title',
+  })
+  
+  const sheetsList = response.data.sheets || []
+  const sheetNames = sheetsList
+    .map(sheet => sheet.properties?.title || '')
+    .filter(name => name && !HIDDEN_SHEETS.includes(name))
+  
+  return sheetNames
+}
+
+/**
+ * Obtiene todos los IDs de una hoja específica (primera columna)
+ */
+export async function getSheetIds(accessToken: string, sheetName: string): Promise<string[]> {
+  const sheets = getSheetsClient(accessToken)
+  
+  try {
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `'${sheetName}'!A:A`, // Solo columna A (IDs)
+    })
+    
+    const rows = response.data.values || []
+    // Saltar el encabezado (fila 0) y obtener los IDs
+    const ids = rows.slice(1)
+      .map(row => String(row[0] || '').trim())
+      .filter(id => id.length > 0)
+    
+    return ids
+  } catch (error) {
+    console.error(`Error obteniendo IDs de hoja ${sheetName}:`, error)
+    return []
+  }
+}
+
+/**
+ * Obtiene todos los datos de una hoja específica o de la hoja principal
+ */
+export async function getAllData(accessToken: string, sheetName: string = '') {
+  const sheets = getSheetsClient(accessToken)
+  
+  // Si se especifica una hoja, usar esa; si no, usar la hoja principal
+  const range = sheetName ? `'${sheetName}'!A:AM` : `'${DEFAULT_SHEET_NAME}'!A:AM`
   
   const response = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
-    range: 'A:AM', // Rango de columnas A a AM
+    range,
   })
 
   return response.data.values || []
 }
 
 /**
- * Obtiene los IDs permitidos para un usuario específico desde la hoja de Permisos
+ * Hojas a excluir del cálculo de estadísticas y de la vista "Todos"
  */
-export async function getUserPermissions(accessToken: string, userEmail: string): Promise<string[]> {
+const STATS_EXCLUDED_SHEETS = ['Permisos', 'Actividad', 'Hoja 2', 'Hoja 1']
+
+/**
+ * Obtiene todos los datos combinados de todas las hojas (excepto las excluidas y Hoja 1)
+ * Los datos se ordenan por ID (primera columna)
+ */
+export async function getAllDataCombined(accessToken: string): Promise<any[][]> {
+  const sheets = getSheetsClient(accessToken)
+  
+  // Obtener lista de todas las hojas
+  const metaResponse = await sheets.spreadsheets.get({
+    spreadsheetId: SPREADSHEET_ID,
+    fields: 'sheets.properties.title',
+  })
+  
+  const sheetsList = metaResponse.data.sheets || []
+  const sheetNames = sheetsList
+    .map(sheet => sheet.properties?.title || '')
+    .filter(name => name && !STATS_EXCLUDED_SHEETS.includes(name))
+  
+  let combinedData: any[][] = []
+  let headers: any[] = []
+  
+  for (const sheetName of sheetNames) {
+    try {
+      const response = await sheets.spreadsheets.values.get({
+        spreadsheetId: SPREADSHEET_ID,
+        range: `'${sheetName}'!A:AM`,
+      })
+      const data = response.data.values || []
+      
+      if (data.length > 0) {
+        // Guardar los headers de la primera hoja
+        if (headers.length === 0) {
+          headers = data[0]
+        }
+        // Agregar los datos (sin headers) al combinado
+        combinedData = combinedData.concat(data.slice(1))
+      }
+    } catch (error) {
+      console.error(`Error obteniendo datos de hoja ${sheetName}:`, error)
+    }
+  }
+  
+  // Ordenar por ID (primera columna) de forma numérica
+  combinedData.sort((a, b) => {
+    const idA = parseInt(String(a[0] || '0'), 10)
+    const idB = parseInt(String(b[0] || '0'), 10)
+    return idA - idB
+  })
+  
+  // Devolver con headers al inicio
+  return [headers, ...combinedData]
+}
+
+/**
+ * Obtiene datos de todas las hojas disponibles para estadísticas
+ */
+export async function getAllSheetsData(accessToken: string): Promise<{ [sheetName: string]: any[][] }> {
+  const sheets = getSheetsClient(accessToken)
+  
+  // Obtener lista de todas las hojas
+  const metaResponse = await sheets.spreadsheets.get({
+    spreadsheetId: SPREADSHEET_ID,
+    fields: 'sheets.properties.title',
+  })
+  
+  const sheetsList = metaResponse.data.sheets || []
+  const sheetNames = sheetsList
+    .map(sheet => sheet.properties?.title || '')
+    .filter(name => name && !STATS_EXCLUDED_SHEETS.includes(name))
+  
+  // Obtener datos de cada hoja
+  const allData: { [sheetName: string]: any[][] } = {}
+  
+  for (const sheetName of sheetNames) {
+    try {
+      const response = await sheets.spreadsheets.values.get({
+        spreadsheetId: SPREADSHEET_ID,
+        range: `'${sheetName}'!A:AM`,
+      })
+      allData[sheetName] = response.data.values || []
+    } catch (error) {
+      console.error(`Error obteniendo datos de hoja ${sheetName}:`, error)
+      allData[sheetName] = []
+    }
+  }
+  
+  return allData
+}
+
+/**
+ * Obtiene los IDs permitidos y la hoja asignada para un usuario específico desde la hoja de Permisos
+ */
+export async function getUserPermissions(accessToken: string, userEmail: string): Promise<{ allowedIds: string[], assignedSheet: string }> {
   const sheets = getSheetsClient(accessToken)
   
   try {
-    // Leer toda la hoja de Permisos
+    // Leer toda la hoja de Permisos (A: email, B: IDs, C: Hoja asignada)
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `${PERMISSIONS_SHEET_NAME}!A:B`, // Columna A: email, Columna B: IDs permitidos
+      range: `${PERMISSIONS_SHEET_NAME}!A:C`,
     })
 
     const rows = response.data.values || []
@@ -65,26 +212,28 @@ export async function getUserPermissions(accessToken: string, userEmail: string)
     const userEmailLower = userEmail.toLowerCase()
     for (const row of rows) {
       if (row[0] && String(row[0]).toLowerCase() === userEmailLower) {
-        // Si encuentra el usuario, parsear los IDs
+        // Si encuentra el usuario, parsear los IDs y la hoja asignada
         const idsString = row[1] || ''
-        if (idsString.trim() === '') {
-          return []
-        }
-        // Parsear IDs separados por comas y limpiar espacios
-        return idsString.split(',').map((id: string) => id.trim()).filter((id: string) => id.length > 0)
+        const assignedSheet = row[2] || '' // Columna C: hoja asignada
+        
+        const allowedIds = idsString.trim() === '' 
+          ? [] 
+          : idsString.split(',').map((id: string) => id.trim()).filter((id: string) => id.length > 0)
+        
+        return { allowedIds, assignedSheet }
       }
     }
     
-    // Si no encuentra el usuario, retornar array vacío (sin permisos)
-    return []
+    // Si no encuentra el usuario, retornar vacío
+    return { allowedIds: [], assignedSheet: '' }
   } catch (error: any) {
     // Si la hoja de Permisos no existe, crearla
     if (error.code === 400 && error.message?.includes('Unable to parse range')) {
       await createPermissionsSheet(accessToken)
-      return []
+      return { allowedIds: [], assignedSheet: '' }
     }
     console.error('Error obteniendo permisos:', error)
-    return []
+    return { allowedIds: [], assignedSheet: '' }
   }
 }
 
@@ -111,13 +260,13 @@ async function createPermissionsSheet(accessToken: string) {
       },
     })
 
-    // Agregar encabezados
+    // Agregar encabezados (incluyendo columna para hoja asignada)
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID,
-      range: `${PERMISSIONS_SHEET_NAME}!A1:B1`,
+      range: `${PERMISSIONS_SHEET_NAME}!A1:C1`,
       valueInputOption: 'RAW',
       requestBody: {
-        values: [['Email', 'IDs Permitidos']],
+        values: [['Email', 'IDs Permitidos', 'Hoja Asignada']],
       },
     })
   } catch (error) {
@@ -131,7 +280,8 @@ async function createPermissionsSheet(accessToken: string) {
 export async function saveUserPermissions(
   accessToken: string,
   userEmail: string,
-  allowedIds: string[]
+  allowedIds: string[],
+  assignedSheet: string = '' // Nueva columna para la hoja asignada
 ): Promise<boolean> {
   const sheets = getSheetsClient(accessToken)
   
@@ -151,7 +301,7 @@ export async function saveUserPermissions(
     // Leer toda la hoja para buscar si el usuario ya existe
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `${PERMISSIONS_SHEET_NAME}!A:B`,
+      range: `${PERMISSIONS_SHEET_NAME}!A:C`,
     })
 
     const rows = response.data.values || []
@@ -173,21 +323,21 @@ export async function saveUserPermissions(
       // Actualizar fila existente
       await sheets.spreadsheets.values.update({
         spreadsheetId: SPREADSHEET_ID,
-        range: `${PERMISSIONS_SHEET_NAME}!A${rowIndex}:B${rowIndex}`,
+        range: `${PERMISSIONS_SHEET_NAME}!A${rowIndex}:C${rowIndex}`,
         valueInputOption: 'RAW',
         requestBody: {
-          values: [[userEmail, idsString]],
+          values: [[userEmail, idsString, assignedSheet]],
         },
       })
     } else {
       // Agregar nueva fila
       await sheets.spreadsheets.values.append({
         spreadsheetId: SPREADSHEET_ID,
-        range: `${PERMISSIONS_SHEET_NAME}!A:B`,
+        range: `${PERMISSIONS_SHEET_NAME}!A:C`,
         valueInputOption: 'RAW',
         insertDataOption: 'INSERT_ROWS',
         requestBody: {
-          values: [[userEmail, idsString]],
+          values: [[userEmail, idsString, assignedSheet]],
         },
       })
     }
@@ -202,28 +352,30 @@ export async function saveUserPermissions(
 /**
  * Obtiene todos los permisos (solo para admins)
  */
-export async function getAllPermissions(accessToken: string): Promise<Array<{ email: string; allowedIds: string[] }>> {
+export async function getAllPermissions(accessToken: string): Promise<Array<{ email: string; allowedIds: string[]; assignedSheet: string }>> {
   const sheets = getSheetsClient(accessToken)
   
   try {
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `${PERMISSIONS_SHEET_NAME}!A:B`,
+      range: `${PERMISSIONS_SHEET_NAME}!A:C`,
     })
 
     const rows = response.data.values || []
-    const permissions: Array<{ email: string; allowedIds: string[] }> = []
+    const permissions: Array<{ email: string; allowedIds: string[]; assignedSheet: string }> = []
 
     // Saltar el encabezado (fila 0)
     for (let i = 1; i < rows.length; i++) {
       const email = rows[i][0]
       const idsString = rows[i][1] || ''
+      const assignedSheet = rows[i][2] || ''
       
       if (email) {
         const allowedIds = idsString.split(',').map((id: string) => id.trim()).filter((id: string) => id.length > 0)
         permissions.push({
           email: String(email),
           allowedIds,
+          assignedSheet: String(assignedSheet),
         })
       }
     }

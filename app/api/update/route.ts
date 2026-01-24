@@ -39,28 +39,34 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Obtener permisos del usuario (incluyendo hoja asignada)
+    const userPermissions = await getUserPermissions(accessToken, userInfo.email)
+    const { allowedIds, assignedSheet } = userPermissions
+
     // Si no es admin, verificar permisos
     if (!userInfo.isAdmin) {
       // Obtener el ID de la fila (primera columna)
-      const rowId = values[0]
-      if (!rowId) {
+      const rowIdValue = values[0]
+      if (!rowIdValue) {
         return NextResponse.json(
           { error: 'ID de fila requerido' },
           { status: 400 }
         )
       }
 
-      // Obtener IDs permitidos para el usuario
-      const allowedIds = await getUserPermissions(accessToken, userInfo.email)
-      const rowIdString = String(rowId).trim().toLowerCase()
-      const allowedIdsLower = allowedIds.map(id => String(id).trim().toLowerCase())
+      // Si tiene hoja asignada, permitir editar cualquier fila de esa hoja
+      // Si no tiene hoja asignada, verificar IDs permitidos
+      if (!assignedSheet) {
+        const rowIdString = String(rowIdValue).trim().toLowerCase()
+        const allowedIdsLower = allowedIds.map(id => String(id).trim().toLowerCase())
 
-      // Verificar que el usuario tiene permiso para editar esta fila
-      if (!allowedIdsLower.includes(rowIdString)) {
-        return NextResponse.json(
-          { error: 'No tienes permiso para editar este registro' },
-          { status: 403 }
-        )
+        // Verificar que el usuario tiene permiso para editar esta fila
+        if (!allowedIdsLower.includes(rowIdString)) {
+          return NextResponse.json(
+            { error: 'No tienes permiso para editar este registro' },
+            { status: 403 }
+          )
+        }
       }
     }
 
@@ -68,10 +74,15 @@ export async function POST(request: NextRequest) {
     const sheets = getSheetsClient(accessToken)
 
     try {
-      // Obtener el nombre correcto de la hoja
-      console.log('Obteniendo nombre de hoja...')
-      const sheetName = await getFirstSheetName(accessToken)
-      console.log('Nombre de hoja obtenido:', sheetName)
+      // Determinar qué hoja usar: la asignada del usuario o la primera hoja (para admin)
+      let sheetName: string
+      if (!userInfo.isAdmin && assignedSheet) {
+        sheetName = assignedSheet
+        console.log('Usando hoja asignada:', sheetName)
+      } else {
+        sheetName = await getFirstSheetName(accessToken)
+        console.log('Usando hoja principal:', sheetName)
+      }
 
       // Buscar la fila por ID en lugar de usar rowNumber
       console.log('Buscando fila con ID:', rowId)

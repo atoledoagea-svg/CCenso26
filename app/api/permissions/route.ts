@@ -105,8 +105,11 @@ export async function POST(request: NextRequest) {
     // Validar que los IDs sean strings
     const validIds = allowedIds.map(id => String(id).trim()).filter(id => id.length > 0)
 
+    // Obtener hoja asignada del body (opcional)
+    const assignedSheet = body.assignedSheet || ''
+
     // Guardar permisos
-    const success = await saveUserPermissions(accessToken, email, validIds)
+    const success = await saveUserPermissions(accessToken, email, validIds, assignedSheet)
 
     if (!success) {
       return NextResponse.json(
@@ -121,6 +124,7 @@ export async function POST(request: NextRequest) {
       permissions: {
         email,
         allowedIds: validIds,
+        assignedSheet,
       },
     })
   } catch (error: any) {
