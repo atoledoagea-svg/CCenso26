@@ -1289,6 +1289,11 @@ export default function Home() {
                     
                     // Detectar si es el campo Estado Kiosco
                     const headerLower = header.toLowerCase().trim()
+                    
+                    // Ocultar campo IMG (se maneja con el componente de subida de imagen)
+                    const isImgField = headerLower === 'img' || headerLower === 'imagen'
+                    if (isImgField) return null
+                    
                     const isEstadoKioscoField = headerLower.includes('estado') && headerLower.includes('kiosco')
                     
                     // Detectar si es el campo Días de atención
