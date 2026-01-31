@@ -85,6 +85,11 @@ export default function Home() {
   // Autocomplete dropdown states
   const [openAutocomplete, setOpenAutocomplete] = useState<string | null>(null)
   const [autocompleteFilter, setAutocompleteFilter] = useState<{ [key: string]: string }>({})
+  
+  // Image upload states
+  const [uploadingImage, setUploadingImage] = useState(false)
+  const [imagePreview, setImagePreview] = useState<string | null>(null)
+  const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null)
 
   const CLIENT_ID = '549677208908-9h6q933go4ss870pbq8gd8gaae75k338.apps.googleusercontent.com'
   const API_KEY = 'AIzaSyCJUD23abF8LcZPp7e8eiK0D5IfFoRCxUc'
@@ -302,6 +307,18 @@ export default function Home() {
       setEditedValues(rowData)
       setOriginalValues(rowData) // Guardar los valores originales del Excel
       setPuestoStatus('abierto')
+      
+      // Cargar imagen existente si hay
+      const imgIndex = sheetData.headers.findIndex(h => 
+        h.toLowerCase().trim() === 'img' || h.toLowerCase().trim() === 'imagen'
+      )
+      if (imgIndex !== -1 && rowData[imgIndex]) {
+        setUploadedImageUrl(rowData[imgIndex])
+        setImagePreview(rowData[imgIndex])
+      } else {
+        setUploadedImageUrl(null)
+        setImagePreview(null)
+      }
     }
   }
 
@@ -314,6 +331,8 @@ export default function Home() {
       setPuestoStatus('')
       setOpenAutocomplete(null)
       setAutocompleteFilter({})
+      setImagePreview(null)
+      setUploadedImageUrl(null)
     }
   }
 
@@ -439,6 +458,90 @@ export default function Home() {
       }
       
       setEditedValues(newValues)
+    }
+  }
+
+  // Función para subir imagen a ImgBB
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !accessToken) return
+
+    // Validar que sea una imagen
+    if (!file.type.startsWith('image/')) {
+      alert('Por favor selecciona un archivo de imagen válido')
+      return
+    }
+
+    // Validar tamaño (máx 32MB para ImgBB)
+    if (file.size > 32 * 1024 * 1024) {
+      alert('La imagen es demasiado grande. Máximo 32MB')
+      return
+    }
+
+    // Mostrar preview
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      setImagePreview(event.target?.result as string)
+    }
+    reader.readAsDataURL(file)
+
+    // Subir a ImgBB
+    setUploadingImage(true)
+    try {
+      const formData = new FormData()
+      formData.append('image', file)
+
+      const response = await fetch('/api/upload', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`
+        },
+        body: formData
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Error al subir imagen')
+      }
+
+      const data = await response.json()
+      setUploadedImageUrl(data.imageUrl)
+
+      // Actualizar el campo IMG en editedValues
+      if (sheetData) {
+        const imgIndex = sheetData.headers.findIndex(h => 
+          h.toLowerCase().trim() === 'img' || h.toLowerCase().trim() === 'imagen'
+        )
+        if (imgIndex !== -1) {
+          const newValues = [...editedValues]
+          newValues[imgIndex] = data.imageUrl
+          setEditedValues(newValues)
+        }
+      }
+
+      alert('✅ Imagen subida correctamente')
+    } catch (error: any) {
+      console.error('Error uploading image:', error)
+      alert('Error al subir la imagen: ' + error.message)
+      setImagePreview(null)
+    } finally {
+      setUploadingImage(false)
+    }
+  }
+
+  // Limpiar imagen
+  const handleClearImage = () => {
+    setImagePreview(null)
+    setUploadedImageUrl(null)
+    if (sheetData) {
+      const imgIndex = sheetData.headers.findIndex(h => 
+        h.toLowerCase().trim() === 'img' || h.toLowerCase().trim() === 'imagen'
+      )
+      if (imgIndex !== -1) {
+        const newValues = [...editedValues]
+        newValues[imgIndex] = ''
+        setEditedValues(newValues)
+      }
     }
   }
 
@@ -1918,12 +2021,70 @@ export default function Home() {
                     )
                   })}
                 </div>
+                
+                {/* Sección de Subida de Imagen */}
+                <div className="image-upload-section">
+                  <h3>📷 Foto del PDV</h3>
+                  <div className="image-upload-container">
+                    {imagePreview ? (
+                      <div className="image-preview-wrapper">
+                        <img 
+                          src={imagePreview} 
+                          alt="Preview" 
+                          className="image-preview"
+                        />
+                        <div className="image-actions">
+                          {uploadedImageUrl && (
+                            <a 
+                              href={uploadedImageUrl} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="btn-view-image"
+                            >
+                              🔗 Ver imagen completa
+                            </a>
+                          )}
+                          <button 
+                            type="button"
+                            className="btn-remove-image"
+                            onClick={handleClearImage}
+                            disabled={uploadingImage}
+                          >
+                            ✕ Quitar imagen
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <label className="image-upload-label">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleImageUpload}
+                          disabled={uploadingImage}
+                          className="image-input-hidden"
+                        />
+                        {uploadingImage ? (
+                          <div className="upload-loading">
+                            <div className="spinner"></div>
+                            <span>Subiendo imagen...</span>
+                          </div>
+                        ) : (
+                          <div className="upload-placeholder">
+                            <span className="upload-icon">📷</span>
+                            <span className="upload-text">Toca para agregar foto</span>
+                            <span className="upload-hint">JPG, PNG o GIF (máx. 32MB)</span>
+                          </div>
+                        )}
+                      </label>
+                    )}
+                  </div>
+                </div>
               </div>
               <div className="modal-footer">
                 <button className="btn-secondary" onClick={handleCancelEdit} disabled={saving}>
                   Cancelar
                 </button>
-                <button className="btn-primary" onClick={handleSaveRow} disabled={saving}>
+                <button className="btn-primary" onClick={handleSaveRow} disabled={saving || uploadingImage}>
                   {saving ? 'Guardando...' : 'Guardar Cambios'}
                 </button>
               </div>
