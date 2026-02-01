@@ -1574,7 +1574,7 @@ export default function Home() {
     setNuevoPdvData({...nuevoPdvData, localidad: value})
     
     if (nuevoPdvData.partido && value.length > 0) {
-      const localidades = nuevoPdvOptions.localidadesPorPartido[nuevoPdvData.partido] || []
+      const localidades = (nuevoPdvOptions.localidadesPorPartido as Record<string, string[]>)[nuevoPdvData.partido] || []
       const filtered = localidades.filter(loc => 
         loc.toLowerCase().includes(value.toLowerCase())
       )
@@ -2846,14 +2846,14 @@ export default function Home() {
                       onChange={(e) => handleLocalidadChange(e.target.value)}
                       onFocus={() => {
                         if (nuevoPdvData.partido && nuevoPdvData.localidad.length > 0) {
-                          const localidades = nuevoPdvOptions.localidadesPorPartido[nuevoPdvData.partido] || []
+                          const localidades = (nuevoPdvOptions.localidadesPorPartido as Record<string, string[]>)[nuevoPdvData.partido] || []
                           const filtered = localidades.filter(loc => 
                             loc.toLowerCase().includes(nuevoPdvData.localidad.toLowerCase())
                           )
                           setLocalidadSugerencias(filtered)
                           setShowLocalidadSugerencias(filtered.length > 0)
                         } else if (nuevoPdvData.partido) {
-                          setLocalidadSugerencias(nuevoPdvOptions.localidadesPorPartido[nuevoPdvData.partido] || [])
+                          setLocalidadSugerencias((nuevoPdvOptions.localidadesPorPartido as Record<string, string[]>)[nuevoPdvData.partido] || [])
                           setShowLocalidadSugerencias(true)
                         }
                       }}
