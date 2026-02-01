@@ -1525,21 +1525,61 @@ export default function Home() {
     partido: ['Almirante Brown', 'Avellaneda', 'Berazategui', 'CABA', 'Escobar', 'Esteban Echeverría', 'Ezeiza', 'Florencio Varela', 'Hurlingham', 'Ituzaingó', 'Jose C Paz', 'La Matanza', 'Lanús', 'Lomas de Zamora', 'Malvinas Argentinas', 'Merlo', 'Moreno', 'Morón', 'Pilar', 'Presidente Perón', 'Quilmes', 'San Fernando', 'San Isidro', 'San Martín', 'San Miguel', 'San Vicente', 'Tigre', 'Tres de Febrero', 'Vicente López'],
     localidadesPorPartido: {
       'CABA': ['Agronomía', 'Almagro', 'Balvanera', 'Barracas', 'Belgrano', 'Boedo', 'Caballito', 'Chacarita', 'Coghlan', 'Colegiales', 'Constitución', 'Flores', 'Floresta', 'La Boca', 'La Paternal', 'Liniers', 'Mataderos', 'Monte Castro', 'Montserrat', 'Nueva Pompeya', 'Núñez', 'Palermo', 'Parque Avellaneda', 'Parque Chacabuco', 'Parque Chas', 'Parque Patricios', 'Puerto Madero', 'Recoleta', 'Retiro', 'Saavedra', 'San Cristóbal', 'San Nicolás', 'San Telmo', 'Vélez Sársfield', 'Versalles', 'Villa Crespo', 'Villa del Parque', 'Villa Devoto', 'Villa Gral. Mitre', 'Villa Lugano', 'Villa Luro', 'Villa Ortúzar', 'Villa Pueyrredón', 'Villa Real', 'Villa Riachuelo', 'Villa Santa Rita', 'Villa Soldati', 'Villa Urquiza'],
-      'Almirante Brown': ['Adrogué', 'Burzaco', 'Claypole', 'Don Orione', 'Glew', 'José Marmol', 'Longchamps', 'Malvinas Argentinas', 'Ministro Rivadavia', 'Rafael Calzada', 'San Francisco Solano'],
-      'Avellaneda': ['Avellaneda', 'Crucecita', 'Dock Sud', 'Gerli', 'Piñeyro', 'Sarandí', 'Villa Domínico', 'Wilde'],
-      'Berazategui': ['Berazategui', 'El Pato', 'Guillermo Hudson', 'Gutiérrez', 'Pereyra', 'Plátanos', 'Ranelagh', 'Sourigues', 'Villa España'],
+      'Almirante Brown': ['Adrogué', 'Burzaco', 'Claypole', 'Don Orione', 'Glew', 'José Mármol', 'Longchamps', 'Malvinas Argentinas', 'Ministro Rivadavia', 'Rafael Calzada', 'San Francisco Solano', 'San José'],
+      'Avellaneda': ['Avellaneda Centro', 'Crucecita', 'Dock Sud', 'Gerli', 'Piñeyro', 'Sarandí', 'Villa Domínico', 'Wilde'],
+      'Berazategui': ['Berazategui Centro', 'El Pato', 'Guillermo Hudson', 'Gutiérrez', 'Juan María Gutiérrez', 'Pereyra', 'Plátanos', 'Ranelagh', 'Sourigues', 'Villa España', 'Villa Mitre'],
+      'Escobar': ['Belén de Escobar', 'Garín', 'Ingeniero Maschwitz', 'Loma Verde', 'Maquinista Savio'],
+      'Esteban Echeverría': ['9 de Abril', 'Canning', 'El Jagüel', 'Luis Guillón', 'Monte Grande', 'Tristán Suárez'],
+      'Ezeiza': ['Aeropuerto Ezeiza', 'Carlos Spegazzini', 'Ezeiza Centro', 'La Unión', 'Tristán Suárez'],
+      'Florencio Varela': ['Bosques', 'Don Orione', 'Florencio Varela Centro', 'Gobernador Costa', 'Ingeniero Allan', 'La Capilla', 'San Juan Bautista', 'Santa Rosa', 'Villa Brown', 'Villa San Luis', 'Villa Vatteone', 'Zeballos'],
+      'Hurlingham': ['Hurlingham', 'Villa Santos Tesei', 'William Morris'],
+      'Ituzaingó': ['Ituzaingó Centro', 'Ituzaingó Sur', 'Villa Udaondo'],
+      'Jose C Paz': ['José C. Paz Centro', 'Del Viso', 'Tortuguitas'],
+      'La Matanza': ['20 de Junio', 'Aldo Bonzi', 'Ciudad Celina', 'Ciudad Evita', 'González Catán', 'Gregorio de Laferrere', 'Isidro Casanova', 'La Tablada', 'Lomas del Mirador', 'Ramos Mejía', 'San Justo', 'Tablada', 'Tapiales', 'Villa Luzuriaga', 'Villa Madero', 'Virrey del Pino', 'Rafael Castillo'],
       'Lanús': ['Gerli', 'Lanús Este', 'Lanús Oeste', 'Monte Chingolo', 'Remedios de Escalada', 'Valentín Alsina'],
-      'Lomas de Zamora': ['Banfield', 'Ingeniero Budge', 'Llavallol', 'Lomas de Zamora', 'Temperley', 'Turdera'],
-      'Quilmes': ['Bernal', 'Bernal Oeste', 'Don Bosco', 'Ezpeleta', 'Quilmes', 'Quilmes Oeste', 'San Francisco Solano'],
-      'La Matanza': ['20 de Junio', 'Aldo Bonzi', 'Ciudad Evita', 'González Catán', 'Gregorio de Laferrere', 'Isidro Casanova', 'La Tablada', 'Lomas del Mirador', 'Ramos Mejía', 'San Justo', 'Tapiales', 'Villa Luzuriaga', 'Villa Madero', 'Virrey del Pino'],
-      'Morón': ['Castelar', 'El Palomar', 'Haedo', 'Morón', 'Villa Sarmiento'],
-      'Tres de Febrero': ['Caseros', 'Ciudadela', 'El Libertador', 'José Ingenieros', 'Loma Hermosa', 'Martín Coronado', 'Pablo Podestá', 'Remedios de Escalada', 'Sáenz Peña', 'Santos Lugares', 'Villa Bosch', 'Villa Raffo'],
-      'Vicente López': ['Carapachay', 'Florida', 'La Lucila', 'Munro', 'Olivos', 'Vicente López', 'Villa Adelina', 'Villa Martelli'],
-      'San Isidro': ['Acassuso', 'Beccar', 'Boulogne', 'Martínez', 'San Isidro', 'Villa Adelina'],
-      'Tigre': ['Benavídez', 'Don Torcuato', 'El Talar', 'General Pacheco', 'Ricardo Rojas', 'Rincón de Milberg', 'Tigre'],
-      'San Fernando': ['San Fernando', 'Victoria', 'Virreyes'],
-      'San Martín': ['Billinghurst', 'José León Suárez', 'San Andrés', 'San Martín', 'Villa Ballester', 'Villa Lynch', 'Villa Maipú'],
+      'Lomas de Zamora': ['Banfield', 'Ingeniero Budge', 'Llavallol', 'Lomas de Zamora Centro', 'Temperley', 'Turdera', 'Villa Fiorito', 'Villa Centenario'],
+      'Malvinas Argentinas': ['Adolfo Sourdeaux', 'Area de Promoción El Triángulo', 'Grand Bourg', 'Ingeniero Pablo Nogués', 'Los Polvorines', 'Pablo Nogués', 'Tierras Altas', 'Tortuguitas', 'Villa de Mayo'],
+      'Merlo': ['Libertad', 'Mariano Acosta', 'Merlo Centro', 'Parque San Martín', 'Pontevedra', 'San Antonio de Padua'],
+      'Moreno': ['Cuartel V', 'Francisco Álvarez', 'La Reja', 'Moreno Centro', 'Paso del Rey', 'Trujui'],
+      'Morón': ['Castelar', 'El Palomar', 'Haedo', 'Morón Centro', 'Villa Sarmiento'],
+      'Pilar': ['Del Viso', 'Fátima', 'La Lonja', 'Manuel Alberti', 'Manzanares', 'Pilar Centro', 'President Derqui', 'Villa Astolfi', 'Villa Rosa'],
+      'Presidente Perón': ['Guernica', 'San Martín'],
+      'Quilmes': ['Bernal', 'Bernal Oeste', 'Don Bosco', 'Ezpeleta', 'Quilmes Centro', 'Quilmes Oeste', 'San Francisco Solano', 'Villa La Florida'],
+      'San Fernando': ['San Fernando Centro', 'Victoria', 'Virreyes'],
+      'San Isidro': ['Acassuso', 'Beccar', 'Boulogne Sur Mer', 'La Horqueta', 'Martínez', 'San Isidro Centro', 'Villa Adelina'],
+      'San Martín': ['Billinghurst', 'José León Suárez', 'San Andrés', 'San Martín Centro', 'Villa Ballester', 'Villa Lynch', 'Villa Maipú', 'Villa Zagala'],
+      'San Miguel': ['Bella Vista', 'Campo de Mayo', 'Muñiz', 'San Miguel Centro', 'Santa María'],
+      'San Vicente': ['Alejandro Korn', 'Domselaar', 'San Vicente Centro'],
+      'Tigre': ['Benavídez', 'Don Torcuato', 'El Talar', 'General Pacheco', 'Nordelta', 'Ricardo Rojas', 'Rincón de Milberg', 'Tigre Centro', 'Troncos del Talar'],
+      'Tres de Febrero': ['Caseros', 'Ciudadela', 'Ciudad Jardín Lomas del Palomar', 'El Libertador', 'José Ingenieros', 'Loma Hermosa', 'Martín Coronado', 'Once de Septiembre', 'Pablo Podestá', 'Sáenz Peña', 'Santos Lugares', 'Villa Bosch', 'Villa Raffo'],
+      'Vicente López': ['Carapachay', 'Florida', 'Florida Oeste', 'La Lucila', 'Munro', 'Olivos', 'Vicente López Centro', 'Villa Adelina', 'Villa Martelli'],
     }
+  }
+
+  // Estado para sugerencias de localidad
+  const [localidadSugerencias, setLocalidadSugerencias] = useState<string[]>([])
+  const [showLocalidadSugerencias, setShowLocalidadSugerencias] = useState(false)
+
+  // Filtrar localidades según lo que escribe el usuario
+  const handleLocalidadChange = (value: string) => {
+    setNuevoPdvData({...nuevoPdvData, localidad: value})
+    
+    if (nuevoPdvData.partido && value.length > 0) {
+      const localidades = nuevoPdvOptions.localidadesPorPartido[nuevoPdvData.partido] || []
+      const filtered = localidades.filter(loc => 
+        loc.toLowerCase().includes(value.toLowerCase())
+      )
+      setLocalidadSugerencias(filtered)
+      setShowLocalidadSugerencias(filtered.length > 0)
+    } else {
+      setLocalidadSugerencias([])
+      setShowLocalidadSugerencias(false)
+    }
+  }
+
+  const selectLocalidad = (localidad: string) => {
+    setNuevoPdvData({...nuevoPdvData, localidad})
+    setShowLocalidadSugerencias(false)
   }
 
   const handleNuevoPdvImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -2773,19 +2813,46 @@ export default function Home() {
                   </select>
                 </div>
 
-                {/* Localidad / Barrio */}
-                <div className="edit-field">
+                {/* Localidad / Barrio - Campo predictivo */}
+                <div className="edit-field autocomplete-field">
                   <label>Localidad / Barrio</label>
-                  <select
-                    value={nuevoPdvData.localidad}
-                    onChange={(e) => setNuevoPdvData({...nuevoPdvData, localidad: e.target.value})}
-                    disabled={savingNuevoPdv || !nuevoPdvData.partido}
-                  >
-                    <option value="">{nuevoPdvData.partido ? 'Seleccionar localidad...' : 'Primero seleccione un partido'}</option>
-                    {nuevoPdvData.partido && nuevoPdvOptions.localidadesPorPartido[nuevoPdvData.partido]?.map(loc => (
-                      <option key={loc} value={loc}>{loc}</option>
-                    ))}
-                  </select>
+                  <div className="autocomplete-container">
+                    <input
+                      type="text"
+                      value={nuevoPdvData.localidad}
+                      onChange={(e) => handleLocalidadChange(e.target.value)}
+                      onFocus={() => {
+                        if (nuevoPdvData.partido && nuevoPdvData.localidad.length > 0) {
+                          const localidades = nuevoPdvOptions.localidadesPorPartido[nuevoPdvData.partido] || []
+                          const filtered = localidades.filter(loc => 
+                            loc.toLowerCase().includes(nuevoPdvData.localidad.toLowerCase())
+                          )
+                          setLocalidadSugerencias(filtered)
+                          setShowLocalidadSugerencias(filtered.length > 0)
+                        } else if (nuevoPdvData.partido) {
+                          setLocalidadSugerencias(nuevoPdvOptions.localidadesPorPartido[nuevoPdvData.partido] || [])
+                          setShowLocalidadSugerencias(true)
+                        }
+                      }}
+                      onBlur={() => setTimeout(() => setShowLocalidadSugerencias(false), 200)}
+                      placeholder={nuevoPdvData.partido ? 'Escriba para buscar localidad...' : 'Primero seleccione un partido'}
+                      disabled={savingNuevoPdv || !nuevoPdvData.partido}
+                      autoComplete="off"
+                    />
+                    {showLocalidadSugerencias && localidadSugerencias.length > 0 && (
+                      <ul className="autocomplete-suggestions">
+                        {localidadSugerencias.map((loc, idx) => (
+                          <li 
+                            key={idx} 
+                            onMouseDown={() => selectLocalidad(loc)}
+                            className="autocomplete-item"
+                          >
+                            {loc}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
                 </div>
 
                 {/* Estado Kiosco */}

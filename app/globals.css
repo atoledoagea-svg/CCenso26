@@ -1347,6 +1347,55 @@ body {
   min-height: 100px;
 }
 
+/* Autocomplete field styles */
+.autocomplete-field {
+  position: relative;
+}
+
+.autocomplete-container {
+  position: relative;
+  width: 100%;
+}
+
+.autocomplete-suggestions {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: white;
+  border: 2px solid var(--gray-200);
+  border-top: none;
+  border-radius: 0 0 8px 8px;
+  max-height: 200px;
+  overflow-y: auto;
+  z-index: 1000;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.autocomplete-item {
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  transition: background 0.15s;
+  border-bottom: 1px solid var(--gray-100);
+}
+
+.autocomplete-item:last-child {
+  border-bottom: none;
+}
+
+.autocomplete-item:hover {
+  background: var(--gray-100);
+  color: var(--clarin-red);
+}
+
+.autocomplete-container input:focus + .autocomplete-suggestions,
+.autocomplete-container input:focus ~ .autocomplete-suggestions {
+  border-color: var(--clarin-red);
+}
+
 /* Sugerencias textarea */
 .sugerencias-textarea {
   width: 100%;
