@@ -65,6 +65,9 @@ export default function Home() {
   const [showAdminSidebar, setShowAdminSidebar] = useState(false)
   const [adminSidebarTab, setAdminSidebarTab] = useState<'hojas' | 'usuarios' | 'stats' | 'reportes'>('hojas')
   
+  // User menu dropdown state
+  const [showUserMenu, setShowUserMenu] = useState(false)
+  
   // Sheets assignment states
   const [availableSheets, setAvailableSheets] = useState<string[]>([])
   const [loadingSheets, setLoadingSheets] = useState(false)
@@ -3923,15 +3926,91 @@ export default function Home() {
               </div>
             )
           })()}
-          <div className="user-badge">
-            <span className="user-email">{userEmail}</span>
-            {sheetData?.permissions?.isAdmin && (
-              <span className="admin-badge">Admin</span>
+          {/* User Menu Dropdown */}
+          <div className="user-menu-container">
+            <button 
+              className="user-menu-trigger"
+              onClick={() => setShowUserMenu(!showUserMenu)}
+            >
+              <div className="user-avatar">
+                {userEmail?.charAt(0).toUpperCase()}
+              </div>
+              <div className="user-info">
+                <span className="user-name">{userEmail?.split('@')[0]}</span>
+                <span className="user-role">
+                  {sheetData?.permissions?.isAdmin ? '👑 Administrador' : '👤 Usuario'}
+                </span>
+              </div>
+              <svg className={`user-menu-arrow ${showUserMenu ? 'open' : ''}`} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M6 9l6 6 6-6"/>
+              </svg>
+            </button>
+            
+            {showUserMenu && (
+              <>
+                <div className="user-menu-overlay" onClick={() => setShowUserMenu(false)}></div>
+                <div className="user-menu-dropdown">
+                  <div className="user-menu-header">
+                    <div className="user-avatar-large">
+                      {userEmail?.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="user-menu-details">
+                      <span className="user-menu-email">{userEmail}</span>
+                      <span className="user-menu-role-badge">
+                        {sheetData?.permissions?.isAdmin ? '👑 Admin' : '👤 Usuario'}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="user-menu-divider"></div>
+                  <div className="user-menu-items">
+                    {sheetData?.permissions?.isAdmin && (
+                      <button 
+                        className="user-menu-item"
+                        onClick={() => {
+                          setShowAdminSidebar(true)
+                          setShowUserMenu(false)
+                        }}
+                      >
+                        <span className="user-menu-icon">⚙️</span>
+                        Panel de Administración
+                      </button>
+                    )}
+                    <button 
+                      className="user-menu-item"
+                      onClick={() => {
+                        window.open('https://docs.google.com/spreadsheets/d/13Ht_fOQuLHDMNYqKFr3FjedtU9ZkKOp_2_zCOnjHKm8', '_blank')
+                        setShowUserMenu(false)
+                      }}
+                    >
+                      <span className="user-menu-icon">📊</span>
+                      Ver Hoja de Cálculo
+                    </button>
+                    <button 
+                      className="user-menu-item"
+                      onClick={() => {
+                        alert(`📧 Email: ${userEmail}\n\n👤 Rol: ${sheetData?.permissions?.isAdmin ? 'Administrador' : 'Usuario'}\n\n📋 Hoja actual: ${selectedSheet || 'Por defecto'}\n\n${sheetData?.permissions?.allowedIds?.length ? `🔢 IDs asignados: ${sheetData.permissions.allowedIds.length}` : '🔢 Acceso a todos los IDs'}`)
+                        setShowUserMenu(false)
+                      }}
+                    >
+                      <span className="user-menu-icon">ℹ️</span>
+                      Mi Información
+                    </button>
+                  </div>
+                  <div className="user-menu-divider"></div>
+                  <button 
+                    className="user-menu-item user-menu-logout"
+                    onClick={() => {
+                      setShowUserMenu(false)
+                      handleSignoutClick()
+                    }}
+                  >
+                    <span className="user-menu-icon">🚪</span>
+                    Cerrar Sesión
+                  </button>
+                </div>
+              </>
             )}
           </div>
-          <button className="btn-secondary" onClick={handleSignoutClick}>
-            Cerrar Sesión
-          </button>
         </div>
       </header>
 
