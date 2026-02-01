@@ -90,6 +90,35 @@ export default function Home() {
   const [uploadingImage, setUploadingImage] = useState(false)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null)
+  
+  // Nuevo PDV states
+  const [showNuevoPdvModal, setShowNuevoPdvModal] = useState(false)
+  const [showNuevoPdvForm, setShowNuevoPdvForm] = useState(false)
+  const [savingNuevoPdv, setSavingNuevoPdv] = useState(false)
+  const [nuevoPdvData, setNuevoPdvData] = useState({
+    paquete: '',
+    domicilio: '',
+    provincia: 'Buenos Aires',
+    partido: '',
+    localidad: '',
+    estadoKiosco: 'Abierto',
+    diasAtencion: 'Todos los dias',
+    horario: 'Mañana',
+    escaparate: 'Mediano',
+    ubicacion: 'Barrio',
+    fachada: 'Regular',
+    ventaNoEditorial: '',
+    reparto: 'No',
+    suscripciones: 'No',
+    telefono: '',
+    nVendedor: '',
+    distribuidora: '',
+    paradaOnline: 'No',
+    sugerencias: ''
+  })
+  const [nuevoPdvImagePreview, setNuevoPdvImagePreview] = useState<string | null>(null)
+  const [nuevoPdvImageUrl, setNuevoPdvImageUrl] = useState<string | null>(null)
+  const [uploadingNuevoPdvImage, setUploadingNuevoPdvImage] = useState(false)
 
   const CLIENT_ID = '549677208908-9h6q933go4ss870pbq8gd8gaae75k338.apps.googleusercontent.com'
   const API_KEY = 'AIzaSyCJUD23abF8LcZPp7e8eiK0D5IfFoRCxUc'
@@ -1450,6 +1479,137 @@ export default function Home() {
     }
   }
 
+  // Funciones para Nuevo PDV
+  const resetNuevoPdvForm = () => {
+    setNuevoPdvData({
+      paquete: '',
+      domicilio: '',
+      provincia: 'Buenos Aires',
+      partido: '',
+      localidad: '',
+      estadoKiosco: 'Abierto',
+      diasAtencion: 'Todos los dias',
+      horario: 'Mañana',
+      escaparate: 'Mediano',
+      ubicacion: 'Barrio',
+      fachada: 'Regular',
+      ventaNoEditorial: '',
+      reparto: 'No',
+      suscripciones: 'No',
+      telefono: '',
+      nVendedor: '',
+      distribuidora: '',
+      paradaOnline: 'No',
+      sugerencias: ''
+    })
+    setNuevoPdvImagePreview(null)
+    setNuevoPdvImageUrl(null)
+  }
+
+  const handleNuevoPdvImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !accessToken) return
+
+    if (!file.type.startsWith('image/')) {
+      alert('Por favor selecciona un archivo de imagen válido')
+      return
+    }
+
+    if (file.size > 32 * 1024 * 1024) {
+      alert('La imagen es demasiado grande. Máximo 32MB')
+      return
+    }
+
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      setNuevoPdvImagePreview(event.target?.result as string)
+    }
+    reader.readAsDataURL(file)
+
+    setUploadingNuevoPdvImage(true)
+    try {
+      const formData = new FormData()
+      formData.append('image', file)
+
+      const response = await fetch('/api/upload', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`
+        },
+        body: formData
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Error al subir imagen')
+      }
+
+      const data = await response.json()
+      setNuevoPdvImageUrl(data.imageUrl)
+    } catch (error: any) {
+      console.error('Error uploading image:', error)
+      alert('Error al subir la imagen: ' + error.message)
+      setNuevoPdvImagePreview(null)
+    } finally {
+      setUploadingNuevoPdvImage(false)
+    }
+  }
+
+  const handleSaveNuevoPdv = async () => {
+    if (!accessToken) return
+
+    // Validaciones
+    const errores: string[] = []
+    if (!nuevoPdvData.paquete.trim()) errores.push('- Paquete')
+    if (!nuevoPdvData.domicilio.trim()) errores.push('- Domicilio')
+    if (!nuevoPdvData.ventaNoEditorial.trim()) errores.push('- Venta productos no editoriales')
+    if (!nuevoPdvData.telefono.trim()) errores.push('- Teléfono (poner 0 si no se obtiene)')
+
+    if (errores.length > 0) {
+      alert(`⚠️ Por favor complete los siguientes campos obligatorios:\n\n${errores.join('\n')}`)
+      return
+    }
+
+    const confirmSave = window.confirm('¿Estás seguro de que deseas dar de alta este nuevo PDV?')
+    if (!confirmSave) return
+
+    setSavingNuevoPdv(true)
+    try {
+      const response = await fetch('/api/alta-pdv', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          pdvData: {
+            ...nuevoPdvData,
+            imageUrl: nuevoPdvImageUrl || ''
+          }
+        })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Error al guardar el PDV')
+      }
+
+      const data = await response.json()
+      alert(`✅ ${data.message}`)
+      
+      // Cerrar modales y resetear
+      setShowNuevoPdvForm(false)
+      setShowNuevoPdvModal(false)
+      resetNuevoPdvForm()
+
+    } catch (error: any) {
+      console.error('Error saving nuevo PDV:', error)
+      alert('Error al guardar el PDV: ' + error.message)
+    } finally {
+      setSavingNuevoPdv(false)
+    }
+  }
+
   const filteredData = sheetData?.data.filter(row => {
     // Filtro por búsqueda de texto
     if (searchTerm.trim()) {
@@ -2472,6 +2632,388 @@ export default function Home() {
         )
       })()}
 
+      {/* Modal de Opciones Nuevo PDV */}
+      {showNuevoPdvModal && (
+        <div className="modal-overlay" onClick={() => setShowNuevoPdvModal(false)}>
+          <div className="modal-content modal-small nuevo-pdv-options" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>➕ Nuevo PDV</h2>
+              <button className="modal-close" onClick={() => setShowNuevoPdvModal(false)}>×</button>
+            </div>
+            <div className="modal-body">
+              <p className="nuevo-pdv-description">Selecciona una opción:</p>
+              <div className="nuevo-pdv-buttons">
+                <button 
+                  className="nuevo-pdv-option-btn option-agregar"
+                  onClick={() => {
+                    setShowNuevoPdvModal(false)
+                    setShowNuevoPdvForm(true)
+                    resetNuevoPdvForm()
+                  }}
+                >
+                  <span className="option-icon">🏪</span>
+                  <span className="option-title">AGREGAR NUEVO PDV</span>
+                  <span className="option-desc">Registrar un nuevo punto de venta en el sistema</span>
+                </button>
+                <button 
+                  className="nuevo-pdv-option-btn option-cuestionario"
+                  onClick={() => {
+                    setShowNuevoPdvModal(false)
+                    downloadCuestionario()
+                  }}
+                >
+                  <span className="option-icon">📋</span>
+                  <span className="option-title">CUESTIONARIO PDF</span>
+                  <span className="option-desc">Descargar formulario para llenar a mano</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Formulario Nuevo PDV */}
+      {showNuevoPdvForm && (
+        <div className="modal-overlay" onClick={() => !savingNuevoPdv && setShowNuevoPdvForm(false)}>
+          <div className="modal-content modal-large" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>🏪 Agregar Nuevo PDV</h2>
+              <button className="modal-close" onClick={() => !savingNuevoPdv && setShowNuevoPdvForm(false)} disabled={savingNuevoPdv}>×</button>
+            </div>
+            <div className="modal-body">
+              <div className="nuevo-pdv-notice">
+                <span className="notice-icon">ℹ️</span>
+                <span>Este PDV se guardará en la hoja "ALTA PDV" con un nuevo ID asignado automáticamente.</span>
+              </div>
+              
+              <div className="edit-form nuevo-pdv-form">
+                {/* Paquete */}
+                <div className="edit-field">
+                  <label>Paquete <span className="required">*</span></label>
+                  <input
+                    type="text"
+                    value={nuevoPdvData.paquete}
+                    onChange={(e) => setNuevoPdvData({...nuevoPdvData, paquete: e.target.value})}
+                    placeholder="Nombre del paquete"
+                    disabled={savingNuevoPdv}
+                  />
+                </div>
+
+                {/* Domicilio */}
+                <div className="edit-field">
+                  <label>Domicilio completo <span className="required">*</span></label>
+                  <input
+                    type="text"
+                    value={nuevoPdvData.domicilio}
+                    onChange={(e) => setNuevoPdvData({...nuevoPdvData, domicilio: e.target.value})}
+                    placeholder="Calle, número, esquina, etc."
+                    disabled={savingNuevoPdv}
+                  />
+                </div>
+
+                {/* Provincia, Partido, Localidad */}
+                <div className="edit-field-row">
+                  <div className="edit-field">
+                    <label>Provincia</label>
+                    <input
+                      type="text"
+                      value={nuevoPdvData.provincia}
+                      onChange={(e) => setNuevoPdvData({...nuevoPdvData, provincia: e.target.value})}
+                      disabled={savingNuevoPdv}
+                    />
+                  </div>
+                  <div className="edit-field">
+                    <label>Partido</label>
+                    <input
+                      type="text"
+                      value={nuevoPdvData.partido}
+                      onChange={(e) => setNuevoPdvData({...nuevoPdvData, partido: e.target.value})}
+                      disabled={savingNuevoPdv}
+                    />
+                  </div>
+                  <div className="edit-field">
+                    <label>Localidad / Barrio</label>
+                    <input
+                      type="text"
+                      value={nuevoPdvData.localidad}
+                      onChange={(e) => setNuevoPdvData({...nuevoPdvData, localidad: e.target.value})}
+                      disabled={savingNuevoPdv}
+                    />
+                  </div>
+                </div>
+
+                {/* Estado Kiosco */}
+                <div className="edit-field">
+                  <label>Estado del Kiosco</label>
+                  <select
+                    value={nuevoPdvData.estadoKiosco}
+                    onChange={(e) => setNuevoPdvData({...nuevoPdvData, estadoKiosco: e.target.value})}
+                    disabled={savingNuevoPdv}
+                  >
+                    <option value="Abierto">Abierto</option>
+                    <option value="Cerrado ahora">Cerrado ahora</option>
+                    <option value="Abre ocasionalmente">Abre ocasionalmente</option>
+                  </select>
+                </div>
+
+                {/* Días y Horario */}
+                <div className="edit-field-row">
+                  <div className="edit-field">
+                    <label>Días de atención</label>
+                    <select
+                      value={nuevoPdvData.diasAtencion}
+                      onChange={(e) => setNuevoPdvData({...nuevoPdvData, diasAtencion: e.target.value})}
+                      disabled={savingNuevoPdv}
+                    >
+                      <option value="Todos los dias">Todos los días</option>
+                      <option value="De L a V">De L a V</option>
+                      <option value="Sabado y Domingo">Sábado y Domingo</option>
+                      <option value="3 veces por semana">3 veces por semana</option>
+                      <option value="4 veces por Semana">4 veces por semana</option>
+                    </select>
+                  </div>
+                  <div className="edit-field">
+                    <label>Horario</label>
+                    <select
+                      value={nuevoPdvData.horario}
+                      onChange={(e) => setNuevoPdvData({...nuevoPdvData, horario: e.target.value})}
+                      disabled={savingNuevoPdv}
+                    >
+                      <option value="Mañana">Mañana</option>
+                      <option value="Tarde">Tarde</option>
+                      <option value="Mañana y Tarde">Mañana y Tarde</option>
+                      <option value="Solo reparto/Susc.">Solo reparto/Susc.</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Escaparate, Ubicación, Fachada */}
+                <div className="edit-field-row">
+                  <div className="edit-field">
+                    <label>Escaparate</label>
+                    <select
+                      value={nuevoPdvData.escaparate}
+                      onChange={(e) => setNuevoPdvData({...nuevoPdvData, escaparate: e.target.value})}
+                      disabled={savingNuevoPdv}
+                    >
+                      <option value="Chico">Chico</option>
+                      <option value="Mediano">Mediano</option>
+                      <option value="Grande">Grande</option>
+                    </select>
+                  </div>
+                  <div className="edit-field">
+                    <label>Ubicación</label>
+                    <select
+                      value={nuevoPdvData.ubicacion}
+                      onChange={(e) => setNuevoPdvData({...nuevoPdvData, ubicacion: e.target.value})}
+                      disabled={savingNuevoPdv}
+                    >
+                      <option value="Avenida">Avenida</option>
+                      <option value="Barrio">Barrio</option>
+                      <option value="Estación Subte/Tren">Estación Subte/Tren</option>
+                    </select>
+                  </div>
+                  <div className="edit-field">
+                    <label>Fachada del puesto</label>
+                    <select
+                      value={nuevoPdvData.fachada}
+                      onChange={(e) => setNuevoPdvData({...nuevoPdvData, fachada: e.target.value})}
+                      disabled={savingNuevoPdv}
+                    >
+                      <option value="Malo">Malo</option>
+                      <option value="Regular">Regular</option>
+                      <option value="Bueno">Bueno</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Venta no editorial, Reparto, Suscripciones */}
+                <div className="edit-field-row">
+                  <div className="edit-field">
+                    <label>Venta prod. no editoriales <span className="required">*</span></label>
+                    <select
+                      value={nuevoPdvData.ventaNoEditorial}
+                      onChange={(e) => setNuevoPdvData({...nuevoPdvData, ventaNoEditorial: e.target.value})}
+                      disabled={savingNuevoPdv}
+                    >
+                      <option value="">Seleccionar...</option>
+                      <option value="Nada">Nada</option>
+                      <option value="Poco">Poco</option>
+                      <option value="Mucho">Mucho</option>
+                    </select>
+                  </div>
+                  <div className="edit-field">
+                    <label>Reparto</label>
+                    <select
+                      value={nuevoPdvData.reparto}
+                      onChange={(e) => setNuevoPdvData({...nuevoPdvData, reparto: e.target.value})}
+                      disabled={savingNuevoPdv}
+                    >
+                      <option value="Si">Sí</option>
+                      <option value="No">No</option>
+                      <option value="Ocasionalmente">Ocasionalmente</option>
+                    </select>
+                  </div>
+                  <div className="edit-field">
+                    <label>Suscripciones</label>
+                    <select
+                      value={nuevoPdvData.suscripciones}
+                      onChange={(e) => setNuevoPdvData({...nuevoPdvData, suscripciones: e.target.value})}
+                      disabled={savingNuevoPdv}
+                    >
+                      <option value="Si">Sí</option>
+                      <option value="No">No</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Teléfono, N° Vendedor */}
+                <div className="edit-field-row">
+                  <div className="edit-field">
+                    <label>Teléfono <span className="required">*</span></label>
+                    <input
+                      type="text"
+                      value={nuevoPdvData.telefono}
+                      onChange={(e) => setNuevoPdvData({...nuevoPdvData, telefono: e.target.value})}
+                      placeholder="Poner 0 si no se obtiene"
+                      disabled={savingNuevoPdv}
+                    />
+                  </div>
+                  <div className="edit-field">
+                    <label>N° Vendedor</label>
+                    <input
+                      type="text"
+                      value={nuevoPdvData.nVendedor}
+                      onChange={(e) => setNuevoPdvData({...nuevoPdvData, nVendedor: e.target.value})}
+                      disabled={savingNuevoPdv}
+                    />
+                  </div>
+                </div>
+
+                {/* Distribuidora, Parada Online */}
+                <div className="edit-field-row">
+                  <div className="edit-field">
+                    <label>Distribuidora</label>
+                    <select
+                      value={nuevoPdvData.distribuidora}
+                      onChange={(e) => setNuevoPdvData({...nuevoPdvData, distribuidora: e.target.value})}
+                      disabled={savingNuevoPdv}
+                    >
+                      <option value="">Seleccionar...</option>
+                      <option value="Barracas">Barracas</option>
+                      <option value="Belgrano">Belgrano</option>
+                      <option value="Barrio Norte">Barrio Norte</option>
+                      <option value="Zunni">Zunni</option>
+                      <option value="Recova">Recova</option>
+                      <option value="Boulogne">Boulogne</option>
+                      <option value="Del Parque">Del Parque</option>
+                      <option value="Roca/La Boca">Roca/La Boca</option>
+                      <option value="Lavalle">Lavalle</option>
+                      <option value="Mariano Acosta">Mariano Acosta</option>
+                      <option value="Nueva Era">Nueva Era</option>
+                      <option value="San Isidro">San Isidro</option>
+                      <option value="Ex Rubbo">Ex Rubbo</option>
+                      <option value="Ex Lugano">Ex Lugano</option>
+                      <option value="Ex Jose C Paz">Ex Jose C Paz</option>
+                    </select>
+                  </div>
+                  <div className="edit-field">
+                    <label>¿Utiliza Parada Online?</label>
+                    <select
+                      value={nuevoPdvData.paradaOnline}
+                      onChange={(e) => setNuevoPdvData({...nuevoPdvData, paradaOnline: e.target.value})}
+                      disabled={savingNuevoPdv}
+                    >
+                      <option value="Si">Sí</option>
+                      <option value="No">No</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Sugerencias */}
+                <div className="edit-field">
+                  <label>Sugerencias / Comentarios</label>
+                  <textarea
+                    value={nuevoPdvData.sugerencias}
+                    onChange={(e) => setNuevoPdvData({...nuevoPdvData, sugerencias: e.target.value})}
+                    placeholder="Observaciones adicionales..."
+                    rows={3}
+                    disabled={savingNuevoPdv}
+                  />
+                </div>
+
+                {/* Imagen */}
+                <div className="image-upload-section">
+                  <h3>📷 Foto del PDV</h3>
+                  <div className="image-upload-container">
+                    {nuevoPdvImagePreview ? (
+                      <div className="image-preview-wrapper">
+                        <img src={nuevoPdvImagePreview} alt="Preview" className="image-preview" />
+                        <div className="image-actions">
+                          {nuevoPdvImageUrl && (
+                            <a href={nuevoPdvImageUrl} target="_blank" rel="noopener noreferrer" className="btn-view-image">
+                              🔗 Ver imagen
+                            </a>
+                          )}
+                          <button 
+                            type="button"
+                            className="btn-remove-image"
+                            onClick={() => {
+                              setNuevoPdvImagePreview(null)
+                              setNuevoPdvImageUrl(null)
+                            }}
+                            disabled={uploadingNuevoPdvImage || savingNuevoPdv}
+                          >
+                            ✕ Quitar
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <label className="image-upload-label">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleNuevoPdvImageUpload}
+                          disabled={uploadingNuevoPdvImage || savingNuevoPdv}
+                          className="image-input-hidden"
+                        />
+                        {uploadingNuevoPdvImage ? (
+                          <div className="upload-loading">
+                            <div className="spinner"></div>
+                            <span>Subiendo imagen...</span>
+                          </div>
+                        ) : (
+                          <div className="upload-placeholder">
+                            <span className="upload-icon">📷</span>
+                            <span className="upload-text">Toca para agregar foto</span>
+                          </div>
+                        )}
+                      </label>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button 
+                className="btn-secondary" 
+                onClick={() => setShowNuevoPdvForm(false)} 
+                disabled={savingNuevoPdv}
+              >
+                Cancelar
+              </button>
+              <button 
+                className="btn-primary" 
+                onClick={handleSaveNuevoPdv} 
+                disabled={savingNuevoPdv || uploadingNuevoPdvImage}
+              >
+                {savingNuevoPdv ? 'Guardando...' : '✓ Dar de Alta PDV'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Admin Sidebar */}
       {showAdminSidebar && sheetData?.permissions?.isAdmin && (
         <>
@@ -3304,10 +3846,10 @@ export default function Home() {
             </button>
             <button 
               className="btn-download-cuestionario"
-              onClick={() => downloadCuestionario()}
-              title="Descargar cuestionario en blanco para PDV nuevos"
+              onClick={() => setShowNuevoPdvModal(true)}
+              title="Agregar nuevo PDV o descargar cuestionario"
             >
-              📋 Cuestionario
+              ➕ Nuevo PDV
             </button>
           </div>
           <div className="toolbar-right">
