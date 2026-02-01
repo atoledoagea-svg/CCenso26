@@ -2399,6 +2399,26 @@ body {
   border: 2px solid #A5B4FC;
 }
 
+/* Selector de hojas para usuarios comunes */
+.user-sheet-selector {
+  background: linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%);
+  border: 2px solid #F59E0B;
+}
+
+.user-sheet-selector .sheet-filter-label {
+  color: #92400E;
+}
+
+.user-sheet-selector .sheet-filter-select {
+  border-color: #F59E0B;
+  background: white;
+}
+
+.user-sheet-selector .sheet-filter-select:focus {
+  border-color: #D97706;
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.2);
+}
+
 .sheet-filter-label {
   font-size: 0.85rem;
   font-weight: 600;

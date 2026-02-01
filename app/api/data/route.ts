@@ -67,11 +67,31 @@ export async function GET(request: NextRequest) {
     const userPermissions = await getUserPermissions(accessToken, userInfo.email)
     const { allowedIds, assignedSheet } = userPermissions
     
-    // Determinar qué hoja leer: la asignada o la principal
-    const sheetToRead = assignedSheet || ''
+    // Obtener parámetro de hoja de la URL (para usuarios comunes)
+    const { searchParams } = new URL(request.url)
+    const requestedSheet = searchParams.get('sheet') || ''
+    
+    // Usuarios comunes solo pueden acceder a su hoja asignada o ALTA PDV
+    const ALTA_PDV_SHEET = 'ALTA PDV'
+    let sheetToRead = assignedSheet || ''
+    let currentSheet = assignedSheet || ''
+    
+    // Si el usuario solicita una hoja específica, validar que sea permitida
+    if (requestedSheet) {
+      if (requestedSheet === ALTA_PDV_SHEET) {
+        sheetToRead = ALTA_PDV_SHEET
+        currentSheet = ALTA_PDV_SHEET
+      } else if (requestedSheet === assignedSheet) {
+        sheetToRead = assignedSheet
+        currentSheet = assignedSheet
+      }
+      // Si solicita otra hoja, usar la asignada por defecto
+    }
     
     console.log(`Cargando datos en /api/data para usuario ${userInfo.email}`)
-    console.log(`Hoja asignada: ${assignedSheet || 'ninguna (usando principal)'}`)
+    console.log(`Hoja asignada: ${assignedSheet || 'ninguna'}`)
+    console.log(`Hoja solicitada: ${requestedSheet || 'ninguna'}`)
+    console.log(`Hoja a leer: ${sheetToRead || 'principal'}`)
     
     const allData = await getAllData(accessToken, sheetToRead)
     console.log('Datos obtenidos, longitud:', allData.length)
@@ -80,19 +100,19 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({
         headers: [],
         data: [],
-        permissions: { allowedIds, isAdmin: false, assignedSheet },
+        permissions: { allowedIds, isAdmin: false, assignedSheet, currentSheet },
       })
     }
 
     const headers = allData[0].map((cell: any) => String(cell || ''))
     const dataRows = allData.slice(1)
 
-    // Si tiene hoja asignada, mostrar todos los datos de esa hoja (sin filtrar por IDs)
-    if (assignedSheet) {
+    // Si está viendo ALTA PDV o su hoja asignada, mostrar todos los datos (sin filtrar por IDs)
+    if (currentSheet === ALTA_PDV_SHEET || assignedSheet) {
       return NextResponse.json({
         headers,
         data: dataRows,
-        permissions: { allowedIds, isAdmin: false, assignedSheet },
+        permissions: { allowedIds, isAdmin: false, assignedSheet, currentSheet },
       })
     }
     

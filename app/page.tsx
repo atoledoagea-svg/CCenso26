@@ -75,6 +75,9 @@ export default function Home() {
   // Admin sheet filter state
   const [adminSelectedSheet, setAdminSelectedSheet] = useState<string>('')
   
+  // User sheet selection (para usuarios no admin: hoja asignada o ALTA PDV)
+  const [userSelectedSheet, setUserSelectedSheet] = useState<string>('')
+  
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 50
@@ -3995,6 +3998,31 @@ export default function Home() {
                   {availableSheets.map((sheet, idx) => (
                     <option key={idx} value={sheet}>{sheet}</option>
                   ))}
+                </select>
+              </div>
+            )}
+            {/* Selector de hojas para usuarios comunes (hoja asignada + ALTA PDV) */}
+            {!sheetData?.permissions?.isAdmin && sheetData?.permissions?.assignedSheet && (
+              <div className="sheet-filter-group user-sheet-selector">
+                <label className="sheet-filter-label">📋 Hoja:</label>
+                <select
+                  value={userSelectedSheet || sheetData.permissions.assignedSheet}
+                  onChange={(e) => {
+                    setUserSelectedSheet(e.target.value)
+                    setCurrentPage(1)
+                    if (accessToken) {
+                      loadSheetData(accessToken, e.target.value)
+                    }
+                  }}
+                  className="sheet-filter-select"
+                  disabled={loadingData}
+                >
+                  <option value={sheetData.permissions.assignedSheet}>
+                    📊 {sheetData.permissions.assignedSheet}
+                  </option>
+                  <option value="ALTA PDV">
+                    ➕ ALTA PDV (Nuevos)
+                  </option>
                 </select>
               </div>
             )}
