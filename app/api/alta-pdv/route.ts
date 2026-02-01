@@ -141,38 +141,40 @@ export async function POST(request: NextRequest) {
       year: 'numeric'
     })
 
-    // Preparar la fila de datos
+    // Preparar la fila de datos en el orden especificado
     const rowData = [
-      newId,                          // ID
-      pdvData.paquete || '',          // Paquete
-      pdvData.domicilio || '',        // Domicilio
-      pdvData.provincia || '',        // Provincia
-      pdvData.partido || '',          // Partido
-      pdvData.localidad || '',        // Localidad/Barrio
-      pdvData.estadoKiosco || '',     // Estado Kiosco
-      pdvData.diasAtencion || '',     // Días de atención
-      pdvData.horario || '',          // Horario
-      pdvData.escaparate || '',       // Escaparate
-      pdvData.ubicacion || '',        // Ubicación
-      pdvData.fachada || '',          // Fachada
-      pdvData.ventaNoEditorial || '', // Venta no editorial
-      pdvData.mayorVenta || '',       // Mayor Venta
-      pdvData.reparto || '',          // Reparto
-      pdvData.suscripciones || '',    // Suscripciones
-      pdvData.telefono || '',         // Teléfono
-      pdvData.nVendedor || '',        // N° Vendedor
-      pdvData.distribuidora || '',    // Distribuidora
-      pdvData.paradaOnline || '',     // Parada Online
-      pdvData.sugerencias || '',      // Sugerencias
-      pdvData.imageUrl || '',         // IMG
-      today,                          // Fecha de alta
-      userInfo.email                  // Dado de alta por
+      newId,                              // ID
+      pdvData.estadoKiosco || '',         // Estado Kiosco
+      pdvData.paquete || '',              // Paquete
+      pdvData.domicilio || '',            // Domicilio
+      pdvData.provincia || '',            // Provincia
+      pdvData.partido || '',              // Partido
+      pdvData.localidad || '',            // Localidad/Barrio
+      pdvData.nVendedor || '',            // N° Vendedor
+      pdvData.distribuidora || '',        // Distribuidora
+      pdvData.diasAtencion || '',         // Días de atención
+      pdvData.horario || '',              // Horario
+      pdvData.escaparate || '',           // Escaparate
+      pdvData.ubicacion || '',            // Ubicación
+      pdvData.fachada || '',              // Fachada puesto
+      pdvData.ventaNoEditorial || '',     // Venta productos no editoriales
+      pdvData.reparto || '',              // Reparto
+      pdvData.suscripciones || '',        // Suscripciones
+      pdvData.nombreApellido || '',       // Nombre y Apellido
+      pdvData.mayorVenta || '',           // Mayor venta
+      pdvData.paradaOnline || '',         // Utiliza Parada Online
+      pdvData.telefono || '',             // Teléfono
+      pdvData.correoElectronico || '',    // Correo electrónico
+      pdvData.observaciones || '',        // Observaciones
+      pdvData.comentarios || '',          // Comentarios
+      userInfo.email,                     // Relevado por
+      pdvData.imageUrl || ''              // IMG
     ]
 
     // Agregar la fila
     await sheets.spreadsheets.values.append({
       spreadsheetId: SPREADSHEET_ID,
-      range: `'${ALTA_PDV_SHEET}'!A:X`,
+      range: `'${ALTA_PDV_SHEET}'!A:Z`,
       valueInputOption: 'USER_ENTERED',
       insertDataOption: 'INSERT_ROWS',
       requestBody: {
@@ -216,37 +218,39 @@ async function createAltaPdvSheet(sheets: any) {
       },
     })
 
-    // Agregar encabezados
+    // Agregar encabezados en el orden especificado
     const headers = [
       'ID',
+      'Estado Kiosco',
       'Paquete',
       'Domicilio',
       'Provincia',
       'Partido',
-      'Localidad/Barrio',
-      'Estado Kiosco',
-      'Días de atención',
+      'Localidad / Barrio',
+      'N° Vendedor',
+      'Distribuidora',
+      'Dias de atención',
       'Horario',
       'Escaparate',
       'Ubicación',
-      'Fachada',
-      'Venta no editorial',
-      'Mayor Venta',
+      'Fachada puesto',
+      'Venta productos no editoriales',
       'Reparto',
       'Suscripciones',
+      'Nombre y Apellido',
+      'Mayor venta',
+      'Utiliza Parada Online',
       'Teléfono',
-      'N° Vendedor',
-      'Distribuidora',
-      'Parada Online',
-      'Sugerencias',
-      'IMG',
-      'Fecha de alta',
-      'Dado de alta por'
+      'Correo electrónico',
+      'Observaciones',
+      'Comentarios',
+      'Relevado por',
+      'IMG'
     ]
 
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID,
-      range: `'${ALTA_PDV_SHEET}'!A1:X1`,
+      range: `'${ALTA_PDV_SHEET}'!A1:Z1`,
       valueInputOption: 'RAW',
       requestBody: {
         values: [headers],
