@@ -102,18 +102,19 @@ export default function Home() {
     partido: '',
     localidad: '',
     estadoKiosco: 'Abierto',
-    diasAtencion: 'Todos los dias',
-    horario: 'Mañana',
-    escaparate: 'Mediano',
-    ubicacion: 'Barrio',
-    fachada: 'Regular',
+    diasAtencion: '',
+    horario: '',
+    escaparate: '',
+    ubicacion: '',
+    fachada: '',
     ventaNoEditorial: '',
-    reparto: 'No',
-    suscripciones: 'No',
+    mayorVenta: '',
+    reparto: '',
+    suscripciones: '',
     telefono: '',
     nVendedor: '',
     distribuidora: '',
-    paradaOnline: 'No',
+    paradaOnline: '',
     sugerencias: ''
   })
   const [nuevoPdvImagePreview, setNuevoPdvImagePreview] = useState<string | null>(null)
@@ -1488,22 +1489,57 @@ export default function Home() {
       partido: '',
       localidad: '',
       estadoKiosco: 'Abierto',
-      diasAtencion: 'Todos los dias',
-      horario: 'Mañana',
-      escaparate: 'Mediano',
-      ubicacion: 'Barrio',
-      fachada: 'Regular',
+      diasAtencion: '',
+      horario: '',
+      escaparate: '',
+      ubicacion: '',
+      fachada: '',
       ventaNoEditorial: '',
-      reparto: 'No',
-      suscripciones: 'No',
+      mayorVenta: '',
+      reparto: '',
+      suscripciones: '',
       telefono: '',
       nVendedor: '',
       distribuidora: '',
-      paradaOnline: 'No',
+      paradaOnline: '',
       sugerencias: ''
     })
     setNuevoPdvImagePreview(null)
     setNuevoPdvImageUrl(null)
+  }
+
+  // Opciones para el formulario de nuevo PDV (idénticas al de edición)
+  const nuevoPdvOptions = {
+    estadoKiosco: ['Abierto', 'Cerrado ahora', 'Abre ocasionalmente', 'Cerrado definitivamente', 'Zona Peligrosa', 'No se encuentra el puesto'],
+    diasAtencion: ['Todos los dias', 'De L a V', 'Sabado y Domingo', '3 veces por semana', '4 veces por Semana'],
+    horario: ['Mañana', 'Mañana y Tarde', 'Tarde', 'Solo reparto/Susc.'],
+    escaparate: ['Chico', 'Mediano', 'Grande'],
+    ubicacion: ['Avenida', 'Barrio', 'Estación Subte/Tren'],
+    fachada: ['Malo', 'Regular', 'Bueno'],
+    ventaNoEditorial: ['Nada', 'Poco', 'Mucho'],
+    mayorVenta: ['Mostrador', 'Reparto', 'Suscripciones', 'No sabe / No comparte'],
+    reparto: ['Si', 'No', 'Ocasionalmente'],
+    suscripciones: ['Si', 'No'],
+    paradaOnline: ['Si', 'No', 'No sabe'],
+    distribuidora: ['Barracas', 'Belgrano', 'Barrio Norte', 'Zunni', 'Recova', 'Boulogne', 'Del Parque', 'Roca/La Boca', 'Lavalle', 'Mariano Acosta', 'Nueva Era', 'San Isidro', 'Ex Rubbo', 'Ex Lugano', 'Ex Jose C Paz'],
+    partido: ['Almirante Brown', 'Avellaneda', 'Berazategui', 'CABA', 'Escobar', 'Esteban Echeverría', 'Ezeiza', 'Florencio Varela', 'Hurlingham', 'Ituzaingó', 'Jose C Paz', 'La Matanza', 'Lanús', 'Lomas de Zamora', 'Malvinas Argentinas', 'Merlo', 'Moreno', 'Morón', 'Pilar', 'Presidente Perón', 'Quilmes', 'San Fernando', 'San Isidro', 'San Martín', 'San Miguel', 'San Vicente', 'Tigre', 'Tres de Febrero', 'Vicente López'],
+    localidadesPorPartido: {
+      'CABA': ['Agronomía', 'Almagro', 'Balvanera', 'Barracas', 'Belgrano', 'Boedo', 'Caballito', 'Chacarita', 'Coghlan', 'Colegiales', 'Constitución', 'Flores', 'Floresta', 'La Boca', 'La Paternal', 'Liniers', 'Mataderos', 'Monte Castro', 'Montserrat', 'Nueva Pompeya', 'Núñez', 'Palermo', 'Parque Avellaneda', 'Parque Chacabuco', 'Parque Chas', 'Parque Patricios', 'Puerto Madero', 'Recoleta', 'Retiro', 'Saavedra', 'San Cristóbal', 'San Nicolás', 'San Telmo', 'Vélez Sársfield', 'Versalles', 'Villa Crespo', 'Villa del Parque', 'Villa Devoto', 'Villa Gral. Mitre', 'Villa Lugano', 'Villa Luro', 'Villa Ortúzar', 'Villa Pueyrredón', 'Villa Real', 'Villa Riachuelo', 'Villa Santa Rita', 'Villa Soldati', 'Villa Urquiza'],
+      'Almirante Brown': ['Adrogué', 'Burzaco', 'Claypole', 'Don Orione', 'Glew', 'José Marmol', 'Longchamps', 'Malvinas Argentinas', 'Ministro Rivadavia', 'Rafael Calzada', 'San Francisco Solano'],
+      'Avellaneda': ['Avellaneda', 'Crucecita', 'Dock Sud', 'Gerli', 'Piñeyro', 'Sarandí', 'Villa Domínico', 'Wilde'],
+      'Berazategui': ['Berazategui', 'El Pato', 'Guillermo Hudson', 'Gutiérrez', 'Pereyra', 'Plátanos', 'Ranelagh', 'Sourigues', 'Villa España'],
+      'Lanús': ['Gerli', 'Lanús Este', 'Lanús Oeste', 'Monte Chingolo', 'Remedios de Escalada', 'Valentín Alsina'],
+      'Lomas de Zamora': ['Banfield', 'Ingeniero Budge', 'Llavallol', 'Lomas de Zamora', 'Temperley', 'Turdera'],
+      'Quilmes': ['Bernal', 'Bernal Oeste', 'Don Bosco', 'Ezpeleta', 'Quilmes', 'Quilmes Oeste', 'San Francisco Solano'],
+      'La Matanza': ['20 de Junio', 'Aldo Bonzi', 'Ciudad Evita', 'González Catán', 'Gregorio de Laferrere', 'Isidro Casanova', 'La Tablada', 'Lomas del Mirador', 'Ramos Mejía', 'San Justo', 'Tapiales', 'Villa Luzuriaga', 'Villa Madero', 'Virrey del Pino'],
+      'Morón': ['Castelar', 'El Palomar', 'Haedo', 'Morón', 'Villa Sarmiento'],
+      'Tres de Febrero': ['Caseros', 'Ciudadela', 'El Libertador', 'José Ingenieros', 'Loma Hermosa', 'Martín Coronado', 'Pablo Podestá', 'Remedios de Escalada', 'Sáenz Peña', 'Santos Lugares', 'Villa Bosch', 'Villa Raffo'],
+      'Vicente López': ['Carapachay', 'Florida', 'La Lucila', 'Munro', 'Olivos', 'Vicente López', 'Villa Adelina', 'Villa Martelli'],
+      'San Isidro': ['Acassuso', 'Beccar', 'Boulogne', 'Martínez', 'San Isidro', 'Villa Adelina'],
+      'Tigre': ['Benavídez', 'Don Torcuato', 'El Talar', 'General Pacheco', 'Ricardo Rojas', 'Rincón de Milberg', 'Tigre'],
+      'San Fernando': ['San Fernando', 'Victoria', 'Virreyes'],
+      'San Martín': ['Billinghurst', 'José León Suárez', 'San Andrés', 'San Martín', 'Villa Ballester', 'Villa Lynch', 'Villa Maipú'],
+    }
   }
 
   const handleNuevoPdvImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -2711,35 +2747,45 @@ export default function Home() {
                   />
                 </div>
 
-                {/* Provincia, Partido, Localidad */}
-                <div className="edit-field-row">
-                  <div className="edit-field">
-                    <label>Provincia</label>
-                    <input
-                      type="text"
-                      value={nuevoPdvData.provincia}
-                      onChange={(e) => setNuevoPdvData({...nuevoPdvData, provincia: e.target.value})}
-                      disabled={savingNuevoPdv}
-                    />
-                  </div>
-                  <div className="edit-field">
-                    <label>Partido</label>
-                    <input
-                      type="text"
-                      value={nuevoPdvData.partido}
-                      onChange={(e) => setNuevoPdvData({...nuevoPdvData, partido: e.target.value})}
-                      disabled={savingNuevoPdv}
-                    />
-                  </div>
-                  <div className="edit-field">
-                    <label>Localidad / Barrio</label>
-                    <input
-                      type="text"
-                      value={nuevoPdvData.localidad}
-                      onChange={(e) => setNuevoPdvData({...nuevoPdvData, localidad: e.target.value})}
-                      disabled={savingNuevoPdv}
-                    />
-                  </div>
+                {/* Provincia */}
+                <div className="edit-field">
+                  <label>Provincia</label>
+                  <input
+                    type="text"
+                    value={nuevoPdvData.provincia}
+                    onChange={(e) => setNuevoPdvData({...nuevoPdvData, provincia: e.target.value})}
+                    disabled={savingNuevoPdv}
+                  />
+                </div>
+
+                {/* Partido */}
+                <div className="edit-field">
+                  <label>Partido</label>
+                  <select
+                    value={nuevoPdvData.partido}
+                    onChange={(e) => setNuevoPdvData({...nuevoPdvData, partido: e.target.value, localidad: ''})}
+                    disabled={savingNuevoPdv}
+                  >
+                    <option value="">Seleccionar partido...</option>
+                    {nuevoPdvOptions.partido.map(p => (
+                      <option key={p} value={p}>{p}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Localidad / Barrio */}
+                <div className="edit-field">
+                  <label>Localidad / Barrio</label>
+                  <select
+                    value={nuevoPdvData.localidad}
+                    onChange={(e) => setNuevoPdvData({...nuevoPdvData, localidad: e.target.value})}
+                    disabled={savingNuevoPdv || !nuevoPdvData.partido}
+                  >
+                    <option value="">{nuevoPdvData.partido ? 'Seleccionar localidad...' : 'Primero seleccione un partido'}</option>
+                    {nuevoPdvData.partido && nuevoPdvOptions.localidadesPorPartido[nuevoPdvData.partido]?.map(loc => (
+                      <option key={loc} value={loc}>{loc}</option>
+                    ))}
+                  </select>
                 </div>
 
                 {/* Estado Kiosco */}
@@ -2750,184 +2796,198 @@ export default function Home() {
                     onChange={(e) => setNuevoPdvData({...nuevoPdvData, estadoKiosco: e.target.value})}
                     disabled={savingNuevoPdv}
                   >
-                    <option value="Abierto">Abierto</option>
-                    <option value="Cerrado ahora">Cerrado ahora</option>
-                    <option value="Abre ocasionalmente">Abre ocasionalmente</option>
+                    {nuevoPdvOptions.estadoKiosco.map(opt => (
+                      <option key={opt} value={opt}>{opt}</option>
+                    ))}
                   </select>
                 </div>
 
-                {/* Días y Horario */}
-                <div className="edit-field-row">
-                  <div className="edit-field">
-                    <label>Días de atención</label>
-                    <select
-                      value={nuevoPdvData.diasAtencion}
-                      onChange={(e) => setNuevoPdvData({...nuevoPdvData, diasAtencion: e.target.value})}
-                      disabled={savingNuevoPdv}
-                    >
-                      <option value="Todos los dias">Todos los días</option>
-                      <option value="De L a V">De L a V</option>
-                      <option value="Sabado y Domingo">Sábado y Domingo</option>
-                      <option value="3 veces por semana">3 veces por semana</option>
-                      <option value="4 veces por Semana">4 veces por semana</option>
-                    </select>
-                  </div>
-                  <div className="edit-field">
-                    <label>Horario</label>
-                    <select
-                      value={nuevoPdvData.horario}
-                      onChange={(e) => setNuevoPdvData({...nuevoPdvData, horario: e.target.value})}
-                      disabled={savingNuevoPdv}
-                    >
-                      <option value="Mañana">Mañana</option>
-                      <option value="Tarde">Tarde</option>
-                      <option value="Mañana y Tarde">Mañana y Tarde</option>
-                      <option value="Solo reparto/Susc.">Solo reparto/Susc.</option>
-                    </select>
-                  </div>
+                {/* Días de atención */}
+                <div className="edit-field">
+                  <label>Días de atención</label>
+                  <select
+                    value={nuevoPdvData.diasAtencion}
+                    onChange={(e) => setNuevoPdvData({...nuevoPdvData, diasAtencion: e.target.value})}
+                    disabled={savingNuevoPdv}
+                  >
+                    <option value="">Seleccionar...</option>
+                    {nuevoPdvOptions.diasAtencion.map(opt => (
+                      <option key={opt} value={opt}>{opt}</option>
+                    ))}
+                  </select>
                 </div>
 
-                {/* Escaparate, Ubicación, Fachada */}
-                <div className="edit-field-row">
-                  <div className="edit-field">
-                    <label>Escaparate</label>
-                    <select
-                      value={nuevoPdvData.escaparate}
-                      onChange={(e) => setNuevoPdvData({...nuevoPdvData, escaparate: e.target.value})}
-                      disabled={savingNuevoPdv}
-                    >
-                      <option value="Chico">Chico</option>
-                      <option value="Mediano">Mediano</option>
-                      <option value="Grande">Grande</option>
-                    </select>
-                  </div>
-                  <div className="edit-field">
-                    <label>Ubicación</label>
-                    <select
-                      value={nuevoPdvData.ubicacion}
-                      onChange={(e) => setNuevoPdvData({...nuevoPdvData, ubicacion: e.target.value})}
-                      disabled={savingNuevoPdv}
-                    >
-                      <option value="Avenida">Avenida</option>
-                      <option value="Barrio">Barrio</option>
-                      <option value="Estación Subte/Tren">Estación Subte/Tren</option>
-                    </select>
-                  </div>
-                  <div className="edit-field">
-                    <label>Fachada del puesto</label>
-                    <select
-                      value={nuevoPdvData.fachada}
-                      onChange={(e) => setNuevoPdvData({...nuevoPdvData, fachada: e.target.value})}
-                      disabled={savingNuevoPdv}
-                    >
-                      <option value="Malo">Malo</option>
-                      <option value="Regular">Regular</option>
-                      <option value="Bueno">Bueno</option>
-                    </select>
-                  </div>
+                {/* Horario */}
+                <div className="edit-field">
+                  <label>Horario</label>
+                  <select
+                    value={nuevoPdvData.horario}
+                    onChange={(e) => setNuevoPdvData({...nuevoPdvData, horario: e.target.value})}
+                    disabled={savingNuevoPdv}
+                  >
+                    <option value="">Seleccionar...</option>
+                    {nuevoPdvOptions.horario.map(opt => (
+                      <option key={opt} value={opt}>{opt}</option>
+                    ))}
+                  </select>
                 </div>
 
-                {/* Venta no editorial, Reparto, Suscripciones */}
-                <div className="edit-field-row">
-                  <div className="edit-field">
-                    <label>Venta prod. no editoriales <span className="required">*</span></label>
-                    <select
-                      value={nuevoPdvData.ventaNoEditorial}
-                      onChange={(e) => setNuevoPdvData({...nuevoPdvData, ventaNoEditorial: e.target.value})}
-                      disabled={savingNuevoPdv}
-                    >
-                      <option value="">Seleccionar...</option>
-                      <option value="Nada">Nada</option>
-                      <option value="Poco">Poco</option>
-                      <option value="Mucho">Mucho</option>
-                    </select>
-                  </div>
-                  <div className="edit-field">
-                    <label>Reparto</label>
-                    <select
-                      value={nuevoPdvData.reparto}
-                      onChange={(e) => setNuevoPdvData({...nuevoPdvData, reparto: e.target.value})}
-                      disabled={savingNuevoPdv}
-                    >
-                      <option value="Si">Sí</option>
-                      <option value="No">No</option>
-                      <option value="Ocasionalmente">Ocasionalmente</option>
-                    </select>
-                  </div>
-                  <div className="edit-field">
-                    <label>Suscripciones</label>
-                    <select
-                      value={nuevoPdvData.suscripciones}
-                      onChange={(e) => setNuevoPdvData({...nuevoPdvData, suscripciones: e.target.value})}
-                      disabled={savingNuevoPdv}
-                    >
-                      <option value="Si">Sí</option>
-                      <option value="No">No</option>
-                    </select>
-                  </div>
+                {/* Escaparate */}
+                <div className="edit-field">
+                  <label>Escaparate</label>
+                  <select
+                    value={nuevoPdvData.escaparate}
+                    onChange={(e) => setNuevoPdvData({...nuevoPdvData, escaparate: e.target.value})}
+                    disabled={savingNuevoPdv}
+                  >
+                    <option value="">Seleccionar...</option>
+                    {nuevoPdvOptions.escaparate.map(opt => (
+                      <option key={opt} value={opt}>{opt}</option>
+                    ))}
+                  </select>
                 </div>
 
-                {/* Teléfono, N° Vendedor */}
-                <div className="edit-field-row">
-                  <div className="edit-field">
-                    <label>Teléfono <span className="required">*</span></label>
-                    <input
-                      type="text"
-                      value={nuevoPdvData.telefono}
-                      onChange={(e) => setNuevoPdvData({...nuevoPdvData, telefono: e.target.value})}
-                      placeholder="Poner 0 si no se obtiene"
-                      disabled={savingNuevoPdv}
-                    />
-                  </div>
-                  <div className="edit-field">
-                    <label>N° Vendedor</label>
-                    <input
-                      type="text"
-                      value={nuevoPdvData.nVendedor}
-                      onChange={(e) => setNuevoPdvData({...nuevoPdvData, nVendedor: e.target.value})}
-                      disabled={savingNuevoPdv}
-                    />
-                  </div>
+                {/* Ubicación */}
+                <div className="edit-field">
+                  <label>Ubicación</label>
+                  <select
+                    value={nuevoPdvData.ubicacion}
+                    onChange={(e) => setNuevoPdvData({...nuevoPdvData, ubicacion: e.target.value})}
+                    disabled={savingNuevoPdv}
+                  >
+                    <option value="">Seleccionar...</option>
+                    {nuevoPdvOptions.ubicacion.map(opt => (
+                      <option key={opt} value={opt}>{opt}</option>
+                    ))}
+                  </select>
                 </div>
 
-                {/* Distribuidora, Parada Online */}
-                <div className="edit-field-row">
-                  <div className="edit-field">
-                    <label>Distribuidora</label>
-                    <select
-                      value={nuevoPdvData.distribuidora}
-                      onChange={(e) => setNuevoPdvData({...nuevoPdvData, distribuidora: e.target.value})}
-                      disabled={savingNuevoPdv}
-                    >
-                      <option value="">Seleccionar...</option>
-                      <option value="Barracas">Barracas</option>
-                      <option value="Belgrano">Belgrano</option>
-                      <option value="Barrio Norte">Barrio Norte</option>
-                      <option value="Zunni">Zunni</option>
-                      <option value="Recova">Recova</option>
-                      <option value="Boulogne">Boulogne</option>
-                      <option value="Del Parque">Del Parque</option>
-                      <option value="Roca/La Boca">Roca/La Boca</option>
-                      <option value="Lavalle">Lavalle</option>
-                      <option value="Mariano Acosta">Mariano Acosta</option>
-                      <option value="Nueva Era">Nueva Era</option>
-                      <option value="San Isidro">San Isidro</option>
-                      <option value="Ex Rubbo">Ex Rubbo</option>
-                      <option value="Ex Lugano">Ex Lugano</option>
-                      <option value="Ex Jose C Paz">Ex Jose C Paz</option>
-                    </select>
-                  </div>
-                  <div className="edit-field">
-                    <label>¿Utiliza Parada Online?</label>
-                    <select
-                      value={nuevoPdvData.paradaOnline}
-                      onChange={(e) => setNuevoPdvData({...nuevoPdvData, paradaOnline: e.target.value})}
-                      disabled={savingNuevoPdv}
-                    >
-                      <option value="Si">Sí</option>
-                      <option value="No">No</option>
-                    </select>
-                  </div>
+                {/* Fachada del puesto */}
+                <div className="edit-field">
+                  <label>Fachada del puesto</label>
+                  <select
+                    value={nuevoPdvData.fachada}
+                    onChange={(e) => setNuevoPdvData({...nuevoPdvData, fachada: e.target.value})}
+                    disabled={savingNuevoPdv}
+                  >
+                    <option value="">Seleccionar...</option>
+                    {nuevoPdvOptions.fachada.map(opt => (
+                      <option key={opt} value={opt}>{opt}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Venta prod. no editoriales */}
+                <div className="edit-field">
+                  <label>Venta prod. no editoriales <span className="required">*</span></label>
+                  <select
+                    value={nuevoPdvData.ventaNoEditorial}
+                    onChange={(e) => setNuevoPdvData({...nuevoPdvData, ventaNoEditorial: e.target.value})}
+                    disabled={savingNuevoPdv}
+                  >
+                    <option value="">Seleccionar...</option>
+                    {nuevoPdvOptions.ventaNoEditorial.map(opt => (
+                      <option key={opt} value={opt}>{opt}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Mayor Venta */}
+                <div className="edit-field">
+                  <label>Mayor Venta</label>
+                  <select
+                    value={nuevoPdvData.mayorVenta}
+                    onChange={(e) => setNuevoPdvData({...nuevoPdvData, mayorVenta: e.target.value})}
+                    disabled={savingNuevoPdv}
+                  >
+                    <option value="">Seleccionar...</option>
+                    {nuevoPdvOptions.mayorVenta.map(opt => (
+                      <option key={opt} value={opt}>{opt}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Reparto */}
+                <div className="edit-field">
+                  <label>Reparto</label>
+                  <select
+                    value={nuevoPdvData.reparto}
+                    onChange={(e) => setNuevoPdvData({...nuevoPdvData, reparto: e.target.value})}
+                    disabled={savingNuevoPdv}
+                  >
+                    <option value="">Seleccionar...</option>
+                    {nuevoPdvOptions.reparto.map(opt => (
+                      <option key={opt} value={opt}>{opt}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Suscripciones */}
+                <div className="edit-field">
+                  <label>Suscripciones</label>
+                  <select
+                    value={nuevoPdvData.suscripciones}
+                    onChange={(e) => setNuevoPdvData({...nuevoPdvData, suscripciones: e.target.value})}
+                    disabled={savingNuevoPdv}
+                  >
+                    <option value="">Seleccionar...</option>
+                    {nuevoPdvOptions.suscripciones.map(opt => (
+                      <option key={opt} value={opt}>{opt}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Teléfono */}
+                <div className="edit-field">
+                  <label>Teléfono <span className="required">*</span></label>
+                  <input
+                    type="text"
+                    value={nuevoPdvData.telefono}
+                    onChange={(e) => setNuevoPdvData({...nuevoPdvData, telefono: e.target.value})}
+                    placeholder="Poner 0 si no se obtiene"
+                    disabled={savingNuevoPdv}
+                  />
+                </div>
+
+                {/* N° Vendedor */}
+                <div className="edit-field">
+                  <label>N° Vendedor</label>
+                  <input
+                    type="text"
+                    value={nuevoPdvData.nVendedor}
+                    onChange={(e) => setNuevoPdvData({...nuevoPdvData, nVendedor: e.target.value})}
+                    disabled={savingNuevoPdv}
+                  />
+                </div>
+
+                {/* Distribuidora */}
+                <div className="edit-field">
+                  <label>Distribuidora</label>
+                  <select
+                    value={nuevoPdvData.distribuidora}
+                    onChange={(e) => setNuevoPdvData({...nuevoPdvData, distribuidora: e.target.value})}
+                    disabled={savingNuevoPdv}
+                  >
+                    <option value="">Seleccionar...</option>
+                    {nuevoPdvOptions.distribuidora.map(opt => (
+                      <option key={opt} value={opt}>{opt}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Parada Online */}
+                <div className="edit-field">
+                  <label>¿Utiliza Parada Online?</label>
+                  <select
+                    value={nuevoPdvData.paradaOnline}
+                    onChange={(e) => setNuevoPdvData({...nuevoPdvData, paradaOnline: e.target.value})}
+                    disabled={savingNuevoPdv}
+                  >
+                    <option value="">Seleccionar...</option>
+                    {nuevoPdvOptions.paradaOnline.map(opt => (
+                      <option key={opt} value={opt}>{opt}</option>
+                    ))}
+                  </select>
                 </div>
 
                 {/* Sugerencias */}

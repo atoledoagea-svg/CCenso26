@@ -156,6 +156,7 @@ export async function POST(request: NextRequest) {
       pdvData.ubicacion || '',        // Ubicación
       pdvData.fachada || '',          // Fachada
       pdvData.ventaNoEditorial || '', // Venta no editorial
+      pdvData.mayorVenta || '',       // Mayor Venta
       pdvData.reparto || '',          // Reparto
       pdvData.suscripciones || '',    // Suscripciones
       pdvData.telefono || '',         // Teléfono
@@ -171,7 +172,7 @@ export async function POST(request: NextRequest) {
     // Agregar la fila
     await sheets.spreadsheets.values.append({
       spreadsheetId: SPREADSHEET_ID,
-      range: `'${ALTA_PDV_SHEET}'!A:W`,
+      range: `'${ALTA_PDV_SHEET}'!A:X`,
       valueInputOption: 'USER_ENTERED',
       insertDataOption: 'INSERT_ROWS',
       requestBody: {
@@ -230,6 +231,7 @@ async function createAltaPdvSheet(sheets: any) {
       'Ubicación',
       'Fachada',
       'Venta no editorial',
+      'Mayor Venta',
       'Reparto',
       'Suscripciones',
       'Teléfono',
@@ -244,7 +246,7 @@ async function createAltaPdvSheet(sheets: any) {
 
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID,
-      range: `'${ALTA_PDV_SHEET}'!A1:W1`,
+      range: `'${ALTA_PDV_SHEET}'!A1:X1`,
       valueInputOption: 'RAW',
       requestBody: {
         values: [headers],
