@@ -705,6 +705,27 @@ body {
   transform: none;
 }
 
+.btn-download-cuestionario {
+  padding: 0.75rem 1.5rem;
+  background: linear-gradient(135deg, #6366F1 0%, #4F46E5 100%);
+  border: none;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: white;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: 'Poppins', sans-serif;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.btn-download-cuestionario:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3);
+}
+
 .btn-admin {
   padding: 0.75rem 1.5rem;
   background: var(--gray-800);

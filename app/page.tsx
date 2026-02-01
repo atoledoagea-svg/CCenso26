@@ -1076,6 +1076,380 @@ export default function Home() {
     document.body.removeChild(link)
   }
 
+  // Descargar cuestionario en blanco para PDV nuevos
+  const downloadCuestionario = () => {
+    const today = new Date().toLocaleDateString('es-AR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    })
+    
+    const cuestionarioHTML = `
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Cuestionario de Relevamiento PDV - Clarín</title>
+  <style>
+    @page {
+      size: A4;
+      margin: 15mm;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: Arial, sans-serif;
+      font-size: 11px;
+      line-height: 1.4;
+      color: #333;
+      padding: 10px;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 3px solid #E31837;
+      padding-bottom: 10px;
+      margin-bottom: 15px;
+    }
+    .header h1 {
+      color: #E31837;
+      font-size: 18px;
+      margin: 0;
+    }
+    .header .logo {
+      font-size: 24px;
+      font-weight: bold;
+      color: #E31837;
+    }
+    .header .date {
+      font-size: 10px;
+      color: #666;
+    }
+    .section {
+      margin-bottom: 12px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      padding: 10px;
+    }
+    .section-title {
+      background: #E31837;
+      color: white;
+      padding: 5px 10px;
+      margin: -10px -10px 10px -10px;
+      border-radius: 5px 5px 0 0;
+      font-size: 12px;
+      font-weight: bold;
+    }
+    .field-row {
+      display: flex;
+      margin-bottom: 8px;
+      gap: 10px;
+    }
+    .field {
+      flex: 1;
+    }
+    .field-full {
+      width: 100%;
+      margin-bottom: 8px;
+    }
+    .field label {
+      display: block;
+      font-weight: bold;
+      font-size: 10px;
+      color: #555;
+      margin-bottom: 3px;
+    }
+    .field input, .field-full input {
+      width: 100%;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      padding: 6px 8px;
+      font-size: 11px;
+      background: #fafafa;
+    }
+    .field-line {
+      border-bottom: 1px solid #333;
+      min-height: 22px;
+      margin-top: 3px;
+    }
+    .checkbox-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 5px;
+    }
+    .checkbox-item {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 10px;
+    }
+    .checkbox-item input[type="checkbox"] {
+      width: 14px;
+      height: 14px;
+    }
+    .radio-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 5px;
+    }
+    .radio-item {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 10px;
+    }
+    .radio-item input[type="radio"] {
+      width: 14px;
+      height: 14px;
+    }
+    .notes-box {
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      min-height: 50px;
+      padding: 8px;
+      background: #fafafa;
+      margin-top: 5px;
+    }
+    .footer {
+      margin-top: 15px;
+      padding-top: 10px;
+      border-top: 1px solid #ddd;
+      font-size: 9px;
+      color: #666;
+      text-align: center;
+    }
+    .required {
+      color: #E31837;
+    }
+    .two-cols {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .three-cols {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 10px;
+    }
+    @media print {
+      body { padding: 0; }
+      .section { break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <div class="logo">Clarín</div>
+      <h1>Cuestionario de Relevamiento PDV</h1>
+    </div>
+    <div class="date">Fecha de impresión: ${today}</div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">📍 DATOS DE UBICACIÓN</div>
+    <div class="two-cols">
+      <div class="field">
+        <label>ID del PDV (si existe):</label>
+        <div class="field-line"></div>
+      </div>
+      <div class="field">
+        <label>Paquete: <span class="required">*</span></label>
+        <div class="field-line"></div>
+      </div>
+    </div>
+    <div class="field-full">
+      <label>Domicilio completo: <span class="required">*</span></label>
+      <div class="field-line"></div>
+    </div>
+    <div class="three-cols">
+      <div class="field">
+        <label>Provincia:</label>
+        <div class="field-line"></div>
+      </div>
+      <div class="field">
+        <label>Partido:</label>
+        <div class="field-line"></div>
+      </div>
+      <div class="field">
+        <label>Localidad / Barrio:</label>
+        <div class="field-line"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">🏪 ESTADO DEL PUESTO</div>
+    <div class="field-full">
+      <label>Estado del Kiosco:</label>
+      <div class="radio-group">
+        <div class="radio-item"><input type="radio" name="estado"> Abierto</div>
+        <div class="radio-item"><input type="radio" name="estado"> Cerrado ahora</div>
+        <div class="radio-item"><input type="radio" name="estado"> Abre ocasionalmente</div>
+        <div class="radio-item"><input type="radio" name="estado"> Cerrado definitivamente</div>
+        <div class="radio-item"><input type="radio" name="estado"> No se encuentra el puesto</div>
+        <div class="radio-item"><input type="radio" name="estado"> Zona Peligrosa</div>
+      </div>
+    </div>
+    <div class="two-cols">
+      <div class="field">
+        <label>Días de atención:</label>
+        <div class="radio-group">
+          <div class="radio-item"><input type="radio" name="dias"> Todos los días</div>
+          <div class="radio-item"><input type="radio" name="dias"> De L a V</div>
+          <div class="radio-item"><input type="radio" name="dias"> Sábado y Domingo</div>
+          <div class="radio-item"><input type="radio" name="dias"> 3 veces por semana</div>
+          <div class="radio-item"><input type="radio" name="dias"> 4 veces por semana</div>
+        </div>
+      </div>
+      <div class="field">
+        <label>Horario:</label>
+        <div class="radio-group">
+          <div class="radio-item"><input type="radio" name="horario"> Mañana</div>
+          <div class="radio-item"><input type="radio" name="horario"> Tarde</div>
+          <div class="radio-item"><input type="radio" name="horario"> Mañana y Tarde</div>
+          <div class="radio-item"><input type="radio" name="horario"> Solo reparto/Susc.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">📊 CARACTERÍSTICAS DEL PUESTO</div>
+    <div class="three-cols">
+      <div class="field">
+        <label>Escaparate:</label>
+        <div class="radio-group">
+          <div class="radio-item"><input type="radio" name="escaparate"> Chico</div>
+          <div class="radio-item"><input type="radio" name="escaparate"> Mediano</div>
+          <div class="radio-item"><input type="radio" name="escaparate"> Grande</div>
+        </div>
+      </div>
+      <div class="field">
+        <label>Ubicación:</label>
+        <div class="radio-group">
+          <div class="radio-item"><input type="radio" name="ubicacion"> Avenida</div>
+          <div class="radio-item"><input type="radio" name="ubicacion"> Barrio</div>
+          <div class="radio-item"><input type="radio" name="ubicacion"> Estación Subte/Tren</div>
+        </div>
+      </div>
+      <div class="field">
+        <label>Fachada del puesto:</label>
+        <div class="radio-group">
+          <div class="radio-item"><input type="radio" name="fachada"> Malo</div>
+          <div class="radio-item"><input type="radio" name="fachada"> Regular</div>
+          <div class="radio-item"><input type="radio" name="fachada"> Bueno</div>
+        </div>
+      </div>
+    </div>
+    <div class="three-cols">
+      <div class="field">
+        <label>Venta prod. no editoriales: <span class="required">*</span></label>
+        <div class="radio-group">
+          <div class="radio-item"><input type="radio" name="venta"> Nada</div>
+          <div class="radio-item"><input type="radio" name="venta"> Poco</div>
+          <div class="radio-item"><input type="radio" name="venta"> Mucho</div>
+        </div>
+      </div>
+      <div class="field">
+        <label>Reparto:</label>
+        <div class="radio-group">
+          <div class="radio-item"><input type="radio" name="reparto"> Sí</div>
+          <div class="radio-item"><input type="radio" name="reparto"> No</div>
+          <div class="radio-item"><input type="radio" name="reparto"> Ocasionalmente</div>
+        </div>
+      </div>
+      <div class="field">
+        <label>Suscripciones:</label>
+        <div class="radio-group">
+          <div class="radio-item"><input type="radio" name="suscripciones"> Sí</div>
+          <div class="radio-item"><input type="radio" name="suscripciones"> No</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">📱 DATOS DE CONTACTO Y DISTRIBUCIÓN</div>
+    <div class="two-cols">
+      <div class="field">
+        <label>Teléfono: <span class="required">*</span> (poner 0 si no se obtiene)</label>
+        <div class="field-line"></div>
+      </div>
+      <div class="field">
+        <label>N° Vendedor:</label>
+        <div class="field-line"></div>
+      </div>
+    </div>
+    <div class="two-cols">
+      <div class="field">
+        <label>Distribuidora:</label>
+        <div class="field-line"></div>
+      </div>
+      <div class="field">
+        <label>¿Utiliza Parada Online?</label>
+        <div class="radio-group">
+          <div class="radio-item"><input type="radio" name="parada"> Sí</div>
+          <div class="radio-item"><input type="radio" name="parada"> No</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">📝 OBSERVACIONES Y SUGERENCIAS</div>
+    <div class="field-full">
+      <label>Sugerencias / Comentarios del PDV:</label>
+      <div class="notes-box"></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">✅ DATOS DEL RELEVAMIENTO</div>
+    <div class="three-cols">
+      <div class="field">
+        <label>Fecha de relevamiento:</label>
+        <div class="field-line"></div>
+      </div>
+      <div class="field">
+        <label>Relevado por (email):</label>
+        <div class="field-line"></div>
+      </div>
+      <div class="field">
+        <label>Firma:</label>
+        <div class="field-line"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <p>Clarín - Relevamiento de Puntos de Venta | Este formulario es para PDV nuevos no listados en el sistema</p>
+    <p>Una vez completado, ingrese los datos en el sistema o entregue a su supervisor</p>
+  </div>
+
+  <script>
+    window.onload = function() {
+      window.print();
+    }
+  </script>
+</body>
+</html>
+    `.trim()
+
+    // Abrir en nueva ventana para imprimir
+    const printWindow = window.open('', '_blank')
+    if (printWindow) {
+      printWindow.document.write(cuestionarioHTML)
+      printWindow.document.close()
+    }
+  }
+
   const filteredData = sheetData?.data.filter(row => {
     // Filtro por búsqueda de texto
     if (searchTerm.trim()) {
@@ -2927,6 +3301,13 @@ export default function Home() {
               title="Descargar reporte de la hoja actual"
             >
               📥 Descargar Reporte
+            </button>
+            <button 
+              className="btn-download-cuestionario"
+              onClick={() => downloadCuestionario()}
+              title="Descargar cuestionario en blanco para PDV nuevos"
+            >
+              📋 Cuestionario
             </button>
           </div>
           <div className="toolbar-right">
