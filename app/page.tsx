@@ -16,6 +16,8 @@ interface SheetData {
   permissions: {
     allowedIds: string[]
     isAdmin: boolean
+    assignedSheet?: string
+    currentSheet?: string
   }
 }
 
