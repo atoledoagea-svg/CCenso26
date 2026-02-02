@@ -989,7 +989,7 @@ body {
   background: #BBF7D0;
 }
 
-.data-table tbody tr.row-relevado td.actions-col .btn-edit::after {
+.data-table tbody tr.row-relevado td.actions-col .actions-buttons .btn-edit::after {
   content: '✓';
   position: absolute;
   top: -5px;
@@ -1002,6 +1002,12 @@ body {
   font-size: 0.6rem;
   display: flex;
   align-items: center;
+  justify-content: center;
+}
+
+.actions-buttons {
+  display: flex;
+  gap: 4px;
   justify-content: center;
 }
 
@@ -1020,6 +1026,29 @@ body {
 .btn-edit:hover {
   background: var(--clarin-red);
   color: white;
+}
+
+.btn-location {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: #DBEAFE;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-location:hover {
+  background: #3B82F6;
+}
+
+.btn-location:disabled {
+  opacity: 0.7;
+  cursor: wait;
 }
 
 .btn-save {
@@ -3867,6 +3896,18 @@ body {
   transition: all 0.2s;
   flex: 1;
   max-width: 150px;
+}
+
+/* Ocultar opción de cámara en desktop */
+.image-upload-option.camera-option {
+  display: none;
+}
+
+/* Mostrar opción de cámara solo en móvil */
+@media (max-width: 768px) {
+  .image-upload-option.camera-option {
+    display: flex;
+  }
 }
 
 .image-upload-option:hover {

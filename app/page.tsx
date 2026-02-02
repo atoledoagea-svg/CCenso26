@@ -652,6 +652,67 @@ export default function Home() {
     }
   }
 
+  // Estado para indicar qué fila está guardando ubicación
+  const [savingLocationRow, setSavingLocationRow] = useState<number | null>(null)
+
+  // Función para guardar solo la ubicación GPS de una fila
+  const handleSaveLocation = async (rowIndex: number) => {
+    if (!accessToken || !sheetData) return
+
+    // Obtener ubicación
+    setSavingLocationRow(rowIndex)
+    try {
+      const location = await getCurrentLocation()
+      if (!location) {
+        alert('⚠️ No se pudo obtener la ubicación GPS.\nAsegúrate de permitir el acceso a la ubicación.')
+        return
+      }
+
+      const rowId = sheetData.data[rowIndex][0]
+      const headers = sheetData.headers.map(h => h.toLowerCase().trim())
+      const latIndex = headers.findIndex(h => h === 'latitud' || h === 'lat')
+      const lngIndex = headers.findIndex(h => h === 'longitud' || h === 'lng' || h === 'long')
+
+      if (latIndex === -1 || lngIndex === -1) {
+        alert('⚠️ Las columnas "latitud" y/o "longitud" no existen en el Excel.\nAgrega estas columnas para poder guardar la ubicación.')
+        return
+      }
+
+      // Preparar los valores a guardar (copiar fila actual y actualizar coordenadas)
+      const valuesToSave = [...sheetData.data[rowIndex]]
+      valuesToSave[latIndex] = location.latitude.toFixed(6)
+      valuesToSave[lngIndex] = location.longitude.toFixed(6)
+
+      const response = await fetch('/api/update', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          rowId: rowId,
+          values: valuesToSave
+        })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Error guardando ubicación')
+      }
+
+      // Actualizar datos locales
+      const newData = [...sheetData.data]
+      newData[rowIndex] = valuesToSave
+      setSheetData({ ...sheetData, data: newData })
+
+      alert(`✅ Ubicación guardada\n📍 ${location.latitude.toFixed(6)}, ${location.longitude.toFixed(6)}`)
+    } catch (err: any) {
+      alert('Error: ' + err.message)
+    } finally {
+      setSavingLocationRow(null)
+    }
+  }
+
   const handleSaveRow = async () => {
     if (!accessToken || editingRow === null || !sheetData || !userEmail) return
     
@@ -2040,6 +2101,10 @@ export default function Home() {
                                           headerLower === 'longitud' || headerLower === 'lng' || headerLower === 'long'
                     if (isLatLngField) return null
                     
+                    // Ocultar campo comentario de foto
+                    const isComentarioFotoField = headerLower.includes('comentario') && headerLower.includes('foto')
+                    if (isComentarioFotoField) return null
+                    
                     const isEstadoKioscoField = headerLower.includes('estado') && headerLower.includes('kiosco')
                     
                     // Detectar si es el campo Días de atención
@@ -2828,8 +2893,8 @@ export default function Home() {
                                 <span className="upload-option-text">Galería</span>
                               </div>
                             </label>
-                            {/* Opción 2: Cámara (móvil) - Captura ubicación GPS */}
-                            <label className="image-upload-option">
+                            {/* Opción 2: Cámara (móvil) - Captura ubicación GPS - Solo visible en móvil */}
+                            <label className="image-upload-option camera-option">
                               <input
                                 type="file"
                                 accept="image/*"
@@ -3315,8 +3380,8 @@ export default function Home() {
                                 <span className="upload-option-text">Galería</span>
                               </div>
                             </label>
-                            {/* Opción 2: Cámara (móvil) - Captura ubicación GPS */}
-                            <label className="image-upload-option">
+                            {/* Opción 2: Cámara (móvil) - Captura ubicación GPS - Solo visible en móvil */}
+                            <label className="image-upload-option camera-option">
                               <input
                                 type="file"
                                 accept="image/*"
@@ -4264,12 +4329,23 @@ export default function Home() {
                     return (
                       <tr key={rowIdx} className={isRelevado ? 'row-relevado' : ''}>
                         <td className="actions-col">
-                          <button 
-                            className="btn-edit"
-                            onClick={() => handleEditRow(originalIndex)}
-                          >
-                            ✎
-                          </button>
+                          <div className="actions-buttons">
+                            <button 
+                              className="btn-edit"
+                              onClick={() => handleEditRow(originalIndex)}
+                              title="Editar registro"
+                            >
+                              ✎
+                            </button>
+                            <button 
+                              className="btn-location"
+                              onClick={() => handleSaveLocation(originalIndex)}
+                              disabled={savingLocationRow === originalIndex}
+                              title="Guardar ubicación GPS"
+                            >
+                              {savingLocationRow === originalIndex ? '⏳' : '📍'}
+                            </button>
+                          </div>
                         </td>
                         {row.map((cell, cellIdx) => (
                           <td key={cellIdx}>{String(cell || '')}</td>
@@ -4340,3 +4416,4 @@ export default function Home() {
     </div>
   )
 }
+
