@@ -571,9 +571,32 @@ export default function Home() {
     // Subir a ImgBB
     setUploadingImage(true)
     try {
-      // Si se solicita capturar ubicación (cámara), obtenerla
+      // Si se solicita capturar ubicación (cámara), verificar si ya existen coordenadas
       let location: {latitude: number, longitude: number} | null = null
-      if (captureLocation) {
+      let shouldCaptureLocation = captureLocation
+      
+      if (captureLocation && sheetData && editingRow !== null) {
+        const headers = sheetData.headers.map(h => h.toLowerCase().trim())
+        const latIndex = headers.findIndex(h => h === 'latitud' || h === 'lat')
+        const lngIndex = headers.findIndex(h => h === 'longitud' || h === 'lng' || h === 'long')
+        
+        if (latIndex !== -1 && lngIndex !== -1) {
+          const existingLat = String(sheetData.data[editingRow][latIndex] || '').trim()
+          const existingLng = String(sheetData.data[editingRow][lngIndex] || '').trim()
+          
+          if (existingLat || existingLng) {
+            shouldCaptureLocation = window.confirm(
+              `📍 Este registro ya tiene coordenadas:\n\n` +
+              `Latitud: ${existingLat || '(vacío)'}\n` +
+              `Longitud: ${existingLng || '(vacío)'}\n\n` +
+              `¿Deseas actualizar las coordenadas con tu ubicación actual?\n\n` +
+              `(Presiona "Cancelar" para subir solo la foto sin cambiar las coordenadas)`
+            )
+          }
+        }
+      }
+      
+      if (shouldCaptureLocation) {
         location = await getCurrentLocation()
       }
 
@@ -619,7 +642,9 @@ export default function Home() {
       // Mensaje de éxito
       let successMessage = '✅ Imagen subida correctamente'
       if (location) {
-        successMessage = `✅ Imagen subida correctamente\n📍 Ubicación capturada: ${location.latitude.toFixed(6)}, ${location.longitude.toFixed(6)}`
+        successMessage = `✅ Imagen subida correctamente\n📍 Ubicación actualizada: ${location.latitude.toFixed(6)}, ${location.longitude.toFixed(6)}`
+      } else if (captureLocation && !shouldCaptureLocation) {
+        successMessage = '✅ Imagen subida correctamente\n📍 Coordenadas anteriores conservadas'
       } else if (captureLocation) {
         successMessage = '✅ Imagen subida correctamente\n⚠️ No se pudo obtener la ubicación GPS'
       }
@@ -659,6 +684,29 @@ export default function Home() {
   const handleSaveLocation = async (rowIndex: number) => {
     if (!accessToken || !sheetData) return
 
+    const headers = sheetData.headers.map(h => h.toLowerCase().trim())
+    const latIndex = headers.findIndex(h => h === 'latitud' || h === 'lat')
+    const lngIndex = headers.findIndex(h => h === 'longitud' || h === 'lng' || h === 'long')
+
+    if (latIndex === -1 || lngIndex === -1) {
+      alert('⚠️ Las columnas "latitud" y/o "longitud" no existen en el Excel.\nAgrega estas columnas para poder guardar la ubicación.')
+      return
+    }
+
+    // Verificar si ya existen coordenadas
+    const existingLat = String(sheetData.data[rowIndex][latIndex] || '').trim()
+    const existingLng = String(sheetData.data[rowIndex][lngIndex] || '').trim()
+    
+    if (existingLat || existingLng) {
+      const confirmOverwrite = window.confirm(
+        `⚠️ Este registro ya tiene coordenadas guardadas:\n\n` +
+        `📍 Latitud: ${existingLat || '(vacío)'}\n` +
+        `📍 Longitud: ${existingLng || '(vacío)'}\n\n` +
+        `¿Deseas sobrescribir con tu ubicación actual?`
+      )
+      if (!confirmOverwrite) return
+    }
+
     // Obtener ubicación
     setSavingLocationRow(rowIndex)
     try {
@@ -669,14 +717,6 @@ export default function Home() {
       }
 
       const rowId = sheetData.data[rowIndex][0]
-      const headers = sheetData.headers.map(h => h.toLowerCase().trim())
-      const latIndex = headers.findIndex(h => h === 'latitud' || h === 'lat')
-      const lngIndex = headers.findIndex(h => h === 'longitud' || h === 'lng' || h === 'long')
-
-      if (latIndex === -1 || lngIndex === -1) {
-        alert('⚠️ Las columnas "latitud" y/o "longitud" no existen en el Excel.\nAgrega estas columnas para poder guardar la ubicación.')
-        return
-      }
 
       // Preparar los valores a guardar (copiar fila actual y actualizar coordenadas)
       const valuesToSave = [...sheetData.data[rowIndex]]

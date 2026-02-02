@@ -1051,6 +1051,39 @@ body {
   cursor: wait;
 }
 
+/* Estilos móviles para botones de acciones */
+@media (max-width: 768px) {
+  .actions-buttons {
+    gap: 6px;
+  }
+  
+  .btn-edit,
+  .btn-location {
+    width: 44px;
+    height: 44px;
+    font-size: 1.2rem;
+    border-radius: 8px;
+  }
+  
+  .btn-location {
+    background: linear-gradient(135deg, #DBEAFE 0%, #BFDBFE 100%);
+    border: 2px solid #3B82F6;
+  }
+  
+  .btn-location:active {
+    transform: scale(0.95);
+    background: #3B82F6;
+  }
+  
+  .data-table tbody tr.row-relevado td.actions-col .actions-buttons .btn-edit::after {
+    width: 16px;
+    height: 16px;
+    font-size: 0.7rem;
+    top: -4px;
+    right: -4px;
+  }
+}
+
 .btn-save {
   width: 28px;
   height: 28px;
