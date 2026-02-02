@@ -2419,6 +2419,31 @@ body {
   box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.2);
 }
 
+/* Indicador de hoja para usuarios (sin selector) */
+.user-sheet-indicator {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: linear-gradient(135deg, #DBEAFE 0%, #BFDBFE 100%);
+  border: 2px solid #3B82F6;
+  border-radius: 8px;
+}
+
+.user-sheet-indicator .sheet-filter-label {
+  color: #1E40AF;
+  font-weight: 600;
+}
+
+.sheet-assigned-name {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #1E40AF;
+  padding: 0.25rem 0.5rem;
+  background: white;
+  border-radius: 4px;
+}
+
 .sheet-filter-label {
   font-size: 0.85rem;
   font-weight: 600;
@@ -3802,6 +3827,106 @@ body {
 
 .image-input-hidden {
   display: none;
+}
+
+/* Opciones de subida de imagen (Galería y Cámara) */
+.image-upload-options {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.5rem;
+  width: 100%;
+}
+
+.image-upload-options .upload-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 2rem;
+}
+
+.image-upload-options > div:first-child:not(.upload-loading) {
+  display: flex;
+  gap: 1rem;
+  width: 100%;
+  justify-content: center;
+}
+
+.image-upload-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem 2rem;
+  border: 2px dashed var(--gray-300);
+  border-radius: 12px;
+  background: var(--gray-50);
+  cursor: pointer;
+  transition: all 0.2s;
+  flex: 1;
+  max-width: 150px;
+}
+
+.image-upload-option:hover {
+  border-color: var(--clarin-red);
+  background: #fff5f5;
+  transform: translateY(-2px);
+}
+
+.image-upload-option:active {
+  transform: translateY(0);
+}
+
+.upload-option-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.upload-option-icon {
+  font-size: 2.5rem;
+}
+
+.upload-option-text {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--gray-700);
+}
+
+.upload-option-hint {
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: #059669;
+  background: #D1FAE5;
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  margin-top: 0.25rem;
+}
+
+.upload-hint-bottom {
+  font-size: 0.75rem;
+  color: var(--gray-400);
+  text-align: center;
+  margin-top: 0.5rem;
+}
+
+/* Responsive para opciones de subida */
+@media (max-width: 480px) {
+  .image-upload-option {
+    padding: 1.25rem 1rem;
+    max-width: 130px;
+  }
+  
+  .upload-option-icon {
+    font-size: 2rem;
+  }
+  
+  .upload-option-text {
+    font-size: 0.8rem;
+  }
 }
 
 .upload-placeholder {

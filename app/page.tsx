@@ -123,7 +123,9 @@ export default function Home() {
     telefono: '',
     correoElectronico: '',
     observaciones: '',
-    comentarios: ''
+    comentarios: '',
+    latitud: '',
+    longitud: ''
   })
   const [nuevoPdvImagePreview, setNuevoPdvImagePreview] = useState<string | null>(null)
   const [nuevoPdvImageUrl, setNuevoPdvImageUrl] = useState<string | null>(null)
@@ -499,8 +501,57 @@ export default function Home() {
     }
   }
 
+  // Función para obtener la ubicación GPS actual
+  const getCurrentLocation = (): Promise<{latitude: number, longitude: number} | null> => {
+    return new Promise((resolve) => {
+      if (!navigator.geolocation) {
+        console.log('Geolocalización no soportada')
+        resolve(null)
+        return
+      }
+
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          resolve({
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude
+          })
+        },
+        (error) => {
+          console.log('Error obteniendo ubicación:', error.message)
+          resolve(null)
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0
+        }
+      )
+    })
+  }
+
+  // Función para actualizar coordenadas en editedValues
+  const updateLocationInForm = (latitude: number, longitude: number) => {
+    if (!sheetData) return
+
+    const headers = sheetData.headers.map(h => h.toLowerCase().trim())
+    const latIndex = headers.findIndex(h => h === 'latitud' || h === 'lat')
+    const lngIndex = headers.findIndex(h => h === 'longitud' || h === 'lng' || h === 'long')
+
+    if (latIndex !== -1 || lngIndex !== -1) {
+      const newValues = [...editedValues]
+      if (latIndex !== -1) {
+        newValues[latIndex] = latitude.toFixed(6)
+      }
+      if (lngIndex !== -1) {
+        newValues[lngIndex] = longitude.toFixed(6)
+      }
+      setEditedValues(newValues)
+    }
+  }
+
   // Función para subir imagen a ImgBB
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, captureLocation: boolean = false) => {
     const file = e.target.files?.[0]
     if (!file || !accessToken) return
 
@@ -526,6 +577,15 @@ export default function Home() {
     // Subir a ImgBB
     setUploadingImage(true)
     try {
+      // Si se solicita capturar ubicación (cámara), obtenerla
+      let location: {latitude: number, longitude: number} | null = null
+      if (captureLocation) {
+        location = await getCurrentLocation()
+        if (location) {
+          updateLocationInForm(location.latitude, location.longitude)
+        }
+      }
+
       const formData = new FormData()
       formData.append('image', file)
 
@@ -557,7 +617,14 @@ export default function Home() {
         }
       }
 
-      alert('✅ Imagen subida correctamente')
+      // Mensaje de éxito con información de ubicación
+      if (location) {
+        alert(`✅ Imagen subida correctamente\n📍 Ubicación capturada: ${location.latitude.toFixed(6)}, ${location.longitude.toFixed(6)}`)
+      } else if (captureLocation) {
+        alert('✅ Imagen subida correctamente\n⚠️ No se pudo obtener la ubicación GPS')
+      } else {
+        alert('✅ Imagen subida correctamente')
+      }
     } catch (error: any) {
       console.error('Error uploading image:', error)
       alert('Error al subir la imagen: ' + error.message)
@@ -1513,7 +1580,9 @@ export default function Home() {
       telefono: '',
       correoElectronico: '',
       observaciones: '',
-      comentarios: ''
+      comentarios: '',
+      latitud: '',
+      longitud: ''
     })
     setNuevoPdvImagePreview(null)
     setNuevoPdvImageUrl(null)
@@ -1593,7 +1662,7 @@ export default function Home() {
     setShowLocalidadSugerencias(false)
   }
 
-  const handleNuevoPdvImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleNuevoPdvImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, captureLocation: boolean = false) => {
     const file = e.target.files?.[0]
     if (!file || !accessToken) return
 
@@ -1615,6 +1684,19 @@ export default function Home() {
 
     setUploadingNuevoPdvImage(true)
     try {
+      // Si se solicita capturar ubicación (cámara), obtenerla
+      let location: {latitude: number, longitude: number} | null = null
+      if (captureLocation) {
+        location = await getCurrentLocation()
+        if (location) {
+          setNuevoPdvData(prev => ({
+            ...prev,
+            latitud: location!.latitude.toFixed(6),
+            longitud: location!.longitude.toFixed(6)
+          }))
+        }
+      }
+
       const formData = new FormData()
       formData.append('image', file)
 
@@ -1633,6 +1715,13 @@ export default function Home() {
 
       const data = await response.json()
       setNuevoPdvImageUrl(data.imageUrl)
+
+      // Mensaje de éxito con información de ubicación
+      if (location) {
+        alert(`✅ Imagen subida correctamente\n📍 Ubicación capturada: ${location.latitude.toFixed(6)}, ${location.longitude.toFixed(6)}`)
+      } else if (captureLocation) {
+        alert('✅ Imagen subida correctamente\n⚠️ No se pudo obtener la ubicación GPS')
+      }
     } catch (error: any) {
       console.error('Error uploading image:', error)
       alert('Error al subir la imagen: ' + error.message)
@@ -2681,7 +2770,16 @@ export default function Home() {
                         </div>
                       </div>
                     ) : (
-                      <label className="image-upload-label">
+                      <div className="image-upload-options">
+                        {uploadingImage ? (
+                          <div className="upload-loading">
+                            <div className="spinner"></div>
+                            <span>Subiendo imagen...</span>
+                          </div>
+                        ) : (
+                          <>
+                            {/* Opción 1: Galería */}
+                            <label className="image-upload-option">
                         <input
                           type="file"
                           accept="image/*"
@@ -2689,19 +2787,31 @@ export default function Home() {
                           disabled={uploadingImage}
                           className="image-input-hidden"
                         />
-                        {uploadingImage ? (
-                          <div className="upload-loading">
-                            <div className="spinner"></div>
-                            <span>Subiendo imagen...</span>
-                          </div>
-                        ) : (
-                          <div className="upload-placeholder">
-                            <span className="upload-icon">📷</span>
-                            <span className="upload-text">Toca para agregar foto</span>
-                            <span className="upload-hint">JPG, PNG o GIF (máx. 32MB)</span>
-                          </div>
+                              <div className="upload-option-content">
+                                <span className="upload-option-icon">🖼️</span>
+                                <span className="upload-option-text">Galería</span>
+                              </div>
+                            </label>
+                            {/* Opción 2: Cámara (móvil) - Captura ubicación GPS */}
+                            <label className="image-upload-option">
+                              <input
+                                type="file"
+                                accept="image/*"
+                                capture="environment"
+                                onChange={(e) => handleImageUpload(e, true)}
+                                disabled={uploadingImage}
+                                className="image-input-hidden"
+                              />
+                              <div className="upload-option-content">
+                                <span className="upload-option-icon">📷</span>
+                                <span className="upload-option-text">Cámara</span>
+                                <span className="upload-option-hint">📍 GPS</span>
+                              </div>
+                            </label>
+                          </>
                         )}
-                      </label>
+                        <span className="upload-hint-bottom">JPG, PNG o GIF (máx. 32MB)</span>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -2730,18 +2840,22 @@ export default function Home() {
             <div className="modal-body">
               <p className="nuevo-pdv-description">Selecciona una opción:</p>
               <div className="nuevo-pdv-buttons">
-                <button 
-                  className="nuevo-pdv-option-btn option-agregar"
-                  onClick={() => {
-                    setShowNuevoPdvModal(false)
-                    setShowNuevoPdvForm(true)
-                    resetNuevoPdvForm()
-                  }}
-                >
-                  <span className="option-icon">🏪</span>
-                  <span className="option-title">AGREGAR NUEVO PDV</span>
-                  <span className="option-desc">Registrar un nuevo punto de venta en el sistema</span>
-                </button>
+                {/* Opción Agregar nuevo PDV - Solo visible para admins */}
+                {sheetData?.permissions?.isAdmin && (
+                  <button 
+                    className="nuevo-pdv-option-btn option-agregar"
+                    onClick={() => {
+                      setShowNuevoPdvModal(false)
+                      setShowNuevoPdvForm(true)
+                      resetNuevoPdvForm()
+                    }}
+                  >
+                    <span className="option-icon">🏪</span>
+                    <span className="option-title">AGREGAR NUEVO PDV</span>
+                    <span className="option-desc">Registrar un nuevo punto de venta en el sistema</span>
+                  </button>
+                )}
+                {/* Opción Cuestionario PDF - Visible para todos */}
                 <button 
                   className="nuevo-pdv-option-btn option-cuestionario"
                   onClick={() => {
@@ -3143,49 +3257,71 @@ export default function Home() {
                         </div>
                       </div>
                     ) : (
-                      <label className="image-upload-label">
-                        <input
-                          type="file"
-                          accept="image/*"
-                          onChange={handleNuevoPdvImageUpload}
-                          disabled={uploadingNuevoPdvImage || savingNuevoPdv}
-                          className="image-input-hidden"
-                        />
+                      <div className="image-upload-options">
                         {uploadingNuevoPdvImage ? (
                           <div className="upload-loading">
                             <div className="spinner"></div>
                             <span>Subiendo imagen...</span>
                           </div>
                         ) : (
-                          <div className="upload-placeholder">
-                            <span className="upload-icon">📷</span>
-                            <span className="upload-text">Toca para agregar foto</span>
-                          </div>
+                          <>
+                            {/* Opción 1: Galería */}
+                            <label className="image-upload-option">
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={handleNuevoPdvImageUpload}
+                                disabled={uploadingNuevoPdvImage || savingNuevoPdv}
+                                className="image-input-hidden"
+                              />
+                              <div className="upload-option-content">
+                                <span className="upload-option-icon">🖼️</span>
+                                <span className="upload-option-text">Galería</span>
+                              </div>
+                            </label>
+                            {/* Opción 2: Cámara (móvil) - Captura ubicación GPS */}
+                            <label className="image-upload-option">
+                              <input
+                                type="file"
+                                accept="image/*"
+                                capture="environment"
+                                onChange={(e) => handleNuevoPdvImageUpload(e, true)}
+                                disabled={uploadingNuevoPdvImage || savingNuevoPdv}
+                                className="image-input-hidden"
+                              />
+                              <div className="upload-option-content">
+                                <span className="upload-option-icon">📷</span>
+                                <span className="upload-option-text">Cámara</span>
+                                <span className="upload-option-hint">📍 GPS</span>
+                              </div>
+                            </label>
+                          </>
                         )}
-                      </label>
+                        <span className="upload-hint-bottom">JPG, PNG o GIF (máx. 32MB)</span>
+                      </div>
                     )}
+                  </div>
                   </div>
                 </div>
               </div>
-            </div>
-            <div className="modal-footer">
+              <div className="modal-footer">
               <button 
                 className="btn-secondary" 
                 onClick={() => setShowNuevoPdvForm(false)} 
                 disabled={savingNuevoPdv}
               >
-                Cancelar
-              </button>
+                  Cancelar
+                </button>
               <button 
                 className="btn-primary" 
                 onClick={handleSaveNuevoPdv} 
                 disabled={savingNuevoPdv || uploadingNuevoPdvImage}
               >
                 {savingNuevoPdv ? 'Guardando...' : '✓ Dar de Alta PDV'}
-              </button>
+                </button>
+              </div>
             </div>
           </div>
-        </div>
       )}
 
       {/* Admin Sidebar */}
@@ -4003,29 +4139,11 @@ export default function Home() {
                 </select>
               </div>
             )}
-            {/* Selector de hojas para usuarios comunes (hoja asignada + ALTA PDV) */}
+            {/* Indicador de hoja asignada para usuarios comunes (sin acceso a ALTA PDV) */}
             {!sheetData?.permissions?.isAdmin && sheetData?.permissions?.assignedSheet && (
-              <div className="sheet-filter-group user-sheet-selector">
-                <label className="sheet-filter-label">📋 Hoja:</label>
-                <select
-                  value={userSelectedSheet || sheetData.permissions.assignedSheet}
-                  onChange={(e) => {
-                    setUserSelectedSheet(e.target.value)
-                    setCurrentPage(1)
-                    if (accessToken) {
-                      loadSheetData(accessToken, e.target.value)
-                    }
-                  }}
-                  className="sheet-filter-select"
-                  disabled={loadingData}
-                >
-                  <option value={sheetData.permissions.assignedSheet}>
-                    📊 {sheetData.permissions.assignedSheet}
-                  </option>
-                  <option value="ALTA PDV">
-                    ➕ ALTA PDV (Nuevos)
-                  </option>
-                </select>
+              <div className="sheet-filter-group user-sheet-indicator">
+                <span className="sheet-filter-label">📋 Hoja:</span>
+                <span className="sheet-assigned-name">{sheetData.permissions.assignedSheet}</span>
               </div>
             )}
             <button 
@@ -4035,6 +4153,8 @@ export default function Home() {
             >
               {loadingData ? 'Cargando...' : 'Recargar Datos'}
             </button>
+            {/* Botón Descargar Reporte - Solo visible para admins */}
+            {sheetData?.permissions?.isAdmin && (
             <button 
               className="btn-download-report"
               onClick={() => downloadSheetReport()}
@@ -4042,7 +4162,8 @@ export default function Home() {
               title="Descargar reporte de la hoja actual"
             >
               📥 Descargar Reporte
-            </button>
+              </button>
+            )}
             <button 
               className="btn-download-cuestionario"
               onClick={() => setShowNuevoPdvModal(true)}
