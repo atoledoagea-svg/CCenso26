@@ -96,6 +96,10 @@ export default function Home() {
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null)
   
+  // Coordenadas GPS capturadas (se guardan automáticamente, no se muestran en formulario)
+  const [capturedLatitude, setCapturedLatitude] = useState<string | null>(null)
+  const [capturedLongitude, setCapturedLongitude] = useState<string | null>(null)
+  
   // Nuevo PDV states
   const [showNuevoPdvModal, setShowNuevoPdvModal] = useState(false)
   const [showNuevoPdvForm, setShowNuevoPdvForm] = useState(false)
@@ -373,6 +377,8 @@ export default function Home() {
       setAutocompleteFilter({})
       setImagePreview(null)
       setUploadedImageUrl(null)
+      setCapturedLatitude(null)
+      setCapturedLongitude(null)
     }
   }
 
@@ -590,69 +596,35 @@ export default function Home() {
       const data = await response.json()
       setUploadedImageUrl(data.imageUrl)
 
-      // Actualizar TODOS los campos en una sola operación (IMG + coordenadas)
+      // Actualizar solo el campo IMG en editedValues
       if (sheetData) {
         const headers = sheetData.headers.map(h => h.toLowerCase().trim())
         const imgIndex = headers.findIndex(h => h === 'img' || h === 'imagen')
-        const latIndex = headers.findIndex(h => h === 'latitud' || h === 'lat')
-        const lngIndex = headers.findIndex(h => h === 'longitud' || h === 'lng' || h === 'long')
         
-        // Log para debug
-        console.log('Headers:', headers)
-        console.log('imgIndex:', imgIndex, 'latIndex:', latIndex, 'lngIndex:', lngIndex)
-        if (location) {
-          console.log('Location to save:', location.latitude.toFixed(6), location.longitude.toFixed(6))
-        }
-        
-        // Guardar las coordenadas en variables para usar en el callback
-        const latValue = location ? location.latitude.toFixed(6) : null
-        const lngValue = location ? location.longitude.toFixed(6) : null
-        
-        setEditedValues(prevValues => {
-          const newValues = [...prevValues]
-          
-          // Actualizar campo IMG
-          if (imgIndex !== -1) {
+        if (imgIndex !== -1) {
+          setEditedValues(prevValues => {
+            const newValues = [...prevValues]
             newValues[imgIndex] = data.imageUrl
-          }
-          
-          // Actualizar coordenadas si se capturó ubicación
-          if (latValue !== null && latIndex !== -1) {
-            newValues[latIndex] = latValue
-            console.log('Setting latitud at index', latIndex, 'to', latValue)
-          }
-          if (lngValue !== null && lngIndex !== -1) {
-            newValues[lngIndex] = lngValue
-            console.log('Setting longitud at index', lngIndex, 'to', lngValue)
-          }
-          
-          console.log('New values after update:', newValues)
-          return newValues
-        })
+            return newValues
+          })
+        }
       }
 
-      // Mensaje de éxito con información de ubicación
+      // Guardar coordenadas en estados separados (se agregarán al guardar)
+      if (location) {
+        setCapturedLatitude(location.latitude.toFixed(6))
+        setCapturedLongitude(location.longitude.toFixed(6))
+      }
+
+      // Mensaje de éxito
       let successMessage = '✅ Imagen subida correctamente'
       if (location) {
-        const latIndex = sheetData?.headers.findIndex(h => {
-          const hLower = h.toLowerCase().trim()
-          return hLower === 'latitud' || hLower === 'lat'
-        }) ?? -1
-        const lngIndex = sheetData?.headers.findIndex(h => {
-          const hLower = h.toLowerCase().trim()
-          return hLower === 'longitud' || hLower === 'lng' || hLower === 'long'
-        }) ?? -1
-        
-        if (latIndex === -1 || lngIndex === -1) {
-          successMessage = `✅ Imagen subida correctamente\n📍 Ubicación: ${location.latitude.toFixed(6)}, ${location.longitude.toFixed(6)}\n⚠️ Las columnas "latitud" y/o "longitud" no existen en el Excel`
-        } else {
-          successMessage = `✅ Imagen subida correctamente\n📍 Ubicación guardada: ${location.latitude.toFixed(6)}, ${location.longitude.toFixed(6)}`
-        }
+        successMessage = `✅ Imagen subida correctamente\n📍 Ubicación capturada: ${location.latitude.toFixed(6)}, ${location.longitude.toFixed(6)}`
       } else if (captureLocation) {
         successMessage = '✅ Imagen subida correctamente\n⚠️ No se pudo obtener la ubicación GPS'
       }
       
-      setTimeout(() => alert(successMessage), 100)
+      alert(successMessage)
     } catch (error: any) {
       console.error('Error uploading image:', error)
       alert('Error al subir la imagen: ' + error.message)
@@ -662,10 +634,12 @@ export default function Home() {
     }
   }
 
-  // Limpiar imagen
+  // Limpiar imagen y coordenadas
   const handleClearImage = () => {
     setImagePreview(null)
     setUploadedImageUrl(null)
+    setCapturedLatitude(null)
+    setCapturedLongitude(null)
     if (sheetData) {
       const imgIndex = sheetData.headers.findIndex(h => 
         h.toLowerCase().trim() === 'img' || h.toLowerCase().trim() === 'imagen'
@@ -743,6 +717,19 @@ export default function Home() {
         valuesToSave[relevadorIndex] = userEmail
       }
       
+      // Agregar coordenadas GPS si fueron capturadas
+      if (capturedLatitude || capturedLongitude) {
+        const latIndex = headers.findIndex(h => h === 'latitud' || h === 'lat')
+        const lngIndex = headers.findIndex(h => h === 'longitud' || h === 'lng' || h === 'long')
+        
+        if (latIndex !== -1 && capturedLatitude) {
+          valuesToSave[latIndex] = capturedLatitude
+        }
+        if (lngIndex !== -1 && capturedLongitude) {
+          valuesToSave[lngIndex] = capturedLongitude
+        }
+      }
+      
       const response = await fetch('/api/update', {
         method: 'POST',
         headers: {
@@ -767,6 +754,10 @@ export default function Home() {
       setEditedValues([])
       setOpenAutocomplete(null)
       setAutocompleteFilter({})
+      setImagePreview(null)
+      setUploadedImageUrl(null)
+      setCapturedLatitude(null)
+      setCapturedLongitude(null)
     } catch (err: any) {
       alert('Error: ' + err.message)
     } finally {
@@ -2043,6 +2034,11 @@ export default function Home() {
                     // Ocultar campo IMG (se maneja con el componente de subida de imagen)
                     const isImgField = headerLower === 'img' || headerLower === 'imagen'
                     if (isImgField) return null
+                    
+                    // Ocultar campos de latitud y longitud (se guardan automáticamente con la foto)
+                    const isLatLngField = headerLower === 'latitud' || headerLower === 'lat' || 
+                                          headerLower === 'longitud' || headerLower === 'lng' || headerLower === 'long'
+                    if (isLatLngField) return null
                     
                     const isEstadoKioscoField = headerLower.includes('estado') && headerLower.includes('kiosco')
                     
