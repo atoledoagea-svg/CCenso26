@@ -530,40 +530,25 @@ export default function Home() {
     })
   }
 
-  // Función para actualizar coordenadas en editedValues
-  const updateLocationInForm = (latitude: number, longitude: number) => {
-    if (!sheetData) return
-
-    const headers = sheetData.headers.map(h => h.toLowerCase().trim())
-    const latIndex = headers.findIndex(h => h === 'latitud' || h === 'lat')
-    const lngIndex = headers.findIndex(h => h === 'longitud' || h === 'lng' || h === 'long')
-
-    if (latIndex !== -1 || lngIndex !== -1) {
-      const newValues = [...editedValues]
-      if (latIndex !== -1) {
-        newValues[latIndex] = latitude.toFixed(6)
-      }
-      if (lngIndex !== -1) {
-        newValues[lngIndex] = longitude.toFixed(6)
-      }
-      setEditedValues(newValues)
-    }
-  }
-
   // Función para subir imagen a ImgBB
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, captureLocation: boolean = false) => {
     const file = e.target.files?.[0]
     if (!file || !accessToken) return
 
+    // Limpiar el input file inmediatamente para evitar re-disparos
+    const inputElement = e.target
+    
     // Validar que sea una imagen
     if (!file.type.startsWith('image/')) {
       alert('Por favor selecciona un archivo de imagen válido')
+      inputElement.value = ''
       return
     }
 
     // Validar tamaño (máx 32MB para ImgBB)
     if (file.size > 32 * 1024 * 1024) {
       alert('La imagen es demasiado grande. Máximo 32MB')
+      inputElement.value = ''
       return
     }
 
@@ -573,6 +558,9 @@ export default function Home() {
       setImagePreview(event.target?.result as string)
     }
     reader.readAsDataURL(file)
+    
+    // Limpiar el input para evitar problemas de re-render
+    inputElement.value = ''
 
     // Subir a ImgBB
     setUploadingImage(true)
@@ -581,9 +569,6 @@ export default function Home() {
       let location: {latitude: number, longitude: number} | null = null
       if (captureLocation) {
         location = await getCurrentLocation()
-        if (location) {
-          updateLocationInForm(location.latitude, location.longitude)
-        }
       }
 
       const formData = new FormData()
@@ -605,26 +590,69 @@ export default function Home() {
       const data = await response.json()
       setUploadedImageUrl(data.imageUrl)
 
-      // Actualizar el campo IMG en editedValues
+      // Actualizar TODOS los campos en una sola operación (IMG + coordenadas)
       if (sheetData) {
-        const imgIndex = sheetData.headers.findIndex(h => 
-          h.toLowerCase().trim() === 'img' || h.toLowerCase().trim() === 'imagen'
-        )
-        if (imgIndex !== -1) {
-          const newValues = [...editedValues]
-          newValues[imgIndex] = data.imageUrl
-          setEditedValues(newValues)
+        const headers = sheetData.headers.map(h => h.toLowerCase().trim())
+        const imgIndex = headers.findIndex(h => h === 'img' || h === 'imagen')
+        const latIndex = headers.findIndex(h => h === 'latitud' || h === 'lat')
+        const lngIndex = headers.findIndex(h => h === 'longitud' || h === 'lng' || h === 'long')
+        
+        // Log para debug
+        console.log('Headers:', headers)
+        console.log('imgIndex:', imgIndex, 'latIndex:', latIndex, 'lngIndex:', lngIndex)
+        if (location) {
+          console.log('Location to save:', location.latitude.toFixed(6), location.longitude.toFixed(6))
         }
+        
+        // Guardar las coordenadas en variables para usar en el callback
+        const latValue = location ? location.latitude.toFixed(6) : null
+        const lngValue = location ? location.longitude.toFixed(6) : null
+        
+        setEditedValues(prevValues => {
+          const newValues = [...prevValues]
+          
+          // Actualizar campo IMG
+          if (imgIndex !== -1) {
+            newValues[imgIndex] = data.imageUrl
+          }
+          
+          // Actualizar coordenadas si se capturó ubicación
+          if (latValue !== null && latIndex !== -1) {
+            newValues[latIndex] = latValue
+            console.log('Setting latitud at index', latIndex, 'to', latValue)
+          }
+          if (lngValue !== null && lngIndex !== -1) {
+            newValues[lngIndex] = lngValue
+            console.log('Setting longitud at index', lngIndex, 'to', lngValue)
+          }
+          
+          console.log('New values after update:', newValues)
+          return newValues
+        })
       }
 
       // Mensaje de éxito con información de ubicación
+      let successMessage = '✅ Imagen subida correctamente'
       if (location) {
-        alert(`✅ Imagen subida correctamente\n📍 Ubicación capturada: ${location.latitude.toFixed(6)}, ${location.longitude.toFixed(6)}`)
+        const latIndex = sheetData?.headers.findIndex(h => {
+          const hLower = h.toLowerCase().trim()
+          return hLower === 'latitud' || hLower === 'lat'
+        }) ?? -1
+        const lngIndex = sheetData?.headers.findIndex(h => {
+          const hLower = h.toLowerCase().trim()
+          return hLower === 'longitud' || hLower === 'lng' || hLower === 'long'
+        }) ?? -1
+        
+        if (latIndex === -1 || lngIndex === -1) {
+          successMessage = `✅ Imagen subida correctamente\n📍 Ubicación: ${location.latitude.toFixed(6)}, ${location.longitude.toFixed(6)}\n⚠️ Las columnas "latitud" y/o "longitud" no existen en el Excel`
+        } else {
+          successMessage = `✅ Imagen subida correctamente\n📍 Ubicación guardada: ${location.latitude.toFixed(6)}, ${location.longitude.toFixed(6)}`
+        }
       } else if (captureLocation) {
-        alert('✅ Imagen subida correctamente\n⚠️ No se pudo obtener la ubicación GPS')
-      } else {
-        alert('✅ Imagen subida correctamente')
+        successMessage = '✅ Imagen subida correctamente\n⚠️ No se pudo obtener la ubicación GPS'
       }
+      
+      setTimeout(() => alert(successMessage), 100)
     } catch (error: any) {
       console.error('Error uploading image:', error)
       alert('Error al subir la imagen: ' + error.message)
@@ -1666,13 +1694,18 @@ export default function Home() {
     const file = e.target.files?.[0]
     if (!file || !accessToken) return
 
+    // Limpiar el input file inmediatamente para evitar re-disparos
+    const inputElement = e.target
+
     if (!file.type.startsWith('image/')) {
       alert('Por favor selecciona un archivo de imagen válido')
+      inputElement.value = ''
       return
     }
 
     if (file.size > 32 * 1024 * 1024) {
       alert('La imagen es demasiado grande. Máximo 32MB')
+      inputElement.value = ''
       return
     }
 
@@ -1681,6 +1714,9 @@ export default function Home() {
       setNuevoPdvImagePreview(event.target?.result as string)
     }
     reader.readAsDataURL(file)
+    
+    // Limpiar el input para evitar problemas de re-render
+    inputElement.value = ''
 
     setUploadingNuevoPdvImage(true)
     try {
@@ -1716,11 +1752,15 @@ export default function Home() {
       const data = await response.json()
       setNuevoPdvImageUrl(data.imageUrl)
 
-      // Mensaje de éxito con información de ubicación
-      if (location) {
-        alert(`✅ Imagen subida correctamente\n📍 Ubicación capturada: ${location.latitude.toFixed(6)}, ${location.longitude.toFixed(6)}`)
-      } else if (captureLocation) {
-        alert('✅ Imagen subida correctamente\n⚠️ No se pudo obtener la ubicación GPS')
+      // Mensaje de éxito con información de ubicación (usar setTimeout para que se muestre después del re-render)
+      const successMessage = location 
+        ? `✅ Imagen subida correctamente\n📍 Ubicación capturada: ${location.latitude.toFixed(6)}, ${location.longitude.toFixed(6)}`
+        : captureLocation 
+          ? '✅ Imagen subida correctamente\n⚠️ No se pudo obtener la ubicación GPS'
+          : null
+      
+      if (successMessage) {
+        setTimeout(() => alert(successMessage), 100)
       }
     } catch (error: any) {
       console.error('Error uploading image:', error)
