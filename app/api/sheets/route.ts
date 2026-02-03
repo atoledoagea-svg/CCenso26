@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { validateGoogleToken, getAccessTokenFromRequest } from '@/app/lib/auth'
 import { getAvailableSheets, getSheetIds } from '@/app/lib/sheets'
 
+// Forzar renderizado dinámico (usa headers)
+export const dynamic = 'force-dynamic'
+
 /**
  * GET /api/sheets
  * Obtiene las hojas disponibles del spreadsheet (solo para admins)

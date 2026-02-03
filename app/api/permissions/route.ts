@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { validateGoogleToken, getAccessTokenFromRequest } from '@/app/lib/auth'
 import { getUserPermissions, saveUserPermissions, getAllPermissions } from '@/app/lib/sheets'
 
+// Forzar renderizado dinámico (usa headers)
+export const dynamic = 'force-dynamic'
+
 /**
  * GET /api/permissions
  * Obtiene los permisos del usuario actual o todos los permisos si es admin

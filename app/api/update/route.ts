@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { validateGoogleToken, getAccessTokenFromRequest } from '@/app/lib/auth'
 import { getSheetsClient, getUserPermissions, getFirstSheetName } from '@/app/lib/sheets'
 
+// Forzar renderizado dinámico (usa headers)
+export const dynamic = 'force-dynamic'
+
 const SPREADSHEET_ID = '13Ht_fOQuLHDMNYqKFr3FjedtU9ZkKOp_2_zCOnjHKm8'
 
 /**

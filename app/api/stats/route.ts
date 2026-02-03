@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { validateGoogleToken, getAccessTokenFromRequest } from '@/app/lib/auth'
 import { getAllSheetsData, getAvailableSheets } from '@/app/lib/sheets'
 
+// Forzar renderizado dinámico (usa headers)
+export const dynamic = 'force-dynamic'
+
 export async function GET(request: NextRequest) {
   try {
     const accessToken = getAccessTokenFromRequest(request)

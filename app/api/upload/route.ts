@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { validateGoogleToken, getAccessTokenFromRequest } from '@/app/lib/auth'
 
+// Forzar renderizado dinámico (usa headers)
+export const dynamic = 'force-dynamic'
+
 const IMGBB_API_KEY = '4e506a27d18a2e3331ce5ffb73e20e7f'
 
 /**

@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { validateGoogleToken, getAccessTokenFromRequest } from '@/app/lib/auth'
 import { getSheetsClient } from '@/app/lib/sheets'
 
+// Forzar renderizado dinámico (usa headers)
+export const dynamic = 'force-dynamic'
+
 const SPREADSHEET_ID = '13Ht_fOQuLHDMNYqKFr3FjedtU9ZkKOp_2_zCOnjHKm8'
 const ALTA_PDV_SHEET = 'ALTA PDV'
 const STARTING_ID = 4279

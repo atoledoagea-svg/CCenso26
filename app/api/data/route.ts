@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { validateGoogleToken, getAccessTokenFromRequest } from '@/app/lib/auth'
 import { getAllData, getUserPermissions, getAllDataCombined } from '@/app/lib/sheets'
 
+// Forzar renderizado dinámico (usa headers)
+export const dynamic = 'force-dynamic'
+
 /**
  * GET /api/data
  * Obtiene los datos del sheet filtrados según los permisos del usuario

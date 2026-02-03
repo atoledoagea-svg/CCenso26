@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 
+// Forzar renderizado dinámico
+export const dynamic = 'force-dynamic'
+
 /**
  * GET /api/geocode
  * Busca una dirección y devuelve coordenadas
