@@ -3058,6 +3058,35 @@ body {
     gap: 0.75rem;
   }
   
+  /* Reorganizar orden en mobile: Relevamiento y Nuevo PDV arriba del buscador */
+  .toolbar-left .sheet-filter-group {
+    order: 1;
+  }
+  
+  .toolbar-left .user-sheet-indicator {
+    order: 1;
+  }
+  
+  .toolbar-left .btn-download-cuestionario {
+    order: 2;
+  }
+  
+  .toolbar-left .search-group {
+    order: 3;
+  }
+  
+  .toolbar-left .filter-relevado-select {
+    order: 4;
+  }
+  
+  .toolbar-left .btn-primary {
+    order: 5;
+  }
+  
+  .toolbar-left .btn-download-report {
+    order: 6;
+  }
+  
   .toolbar-right {
     width: 100%;
     justify-content: center;
@@ -3076,6 +3105,32 @@ body {
   .btn-primary {
     width: 100%;
     justify-content: center;
+  }
+  
+  .btn-download-cuestionario {
+    width: 100%;
+    justify-content: center;
+  }
+  
+  .btn-download-report {
+    width: 100%;
+    justify-content: center;
+  }
+  
+  .filter-relevado-select {
+    width: 100%;
+  }
+  
+  .sheet-filter-group {
+    width: 100%;
+  }
+  
+  .sheet-filter-select {
+    flex: 1;
+  }
+  
+  .user-sheet-indicator {
+    width: 100%;
   }
   
   .table-container {

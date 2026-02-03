@@ -332,7 +332,11 @@ export default function Home() {
 
   const handleEditRow = (rowIndex: number) => {
     if (sheetData) {
+      // Copiar los datos de la fila y asegurar que tenga la misma longitud que los headers
       const rowData = [...sheetData.data[rowIndex]]
+      while (rowData.length < sheetData.headers.length) {
+        rowData.push('')
+      }
       
       // Verificar si el PDV ya fue relevado
       const { relevadorIndex } = getAutoFillIndexes()
@@ -388,15 +392,40 @@ export default function Home() {
     
     const headers = sheetData.headers.map(h => h.toLowerCase().trim())
     
-    // Find "Fecha" column (could be "fecha", "fecha de relevo", etc.)
-    const fechaIndex = headers.findIndex(h => 
-      h.includes('fecha') || h === 'date' || h.includes('fecha de relevo')
-    )
+    // Find "Fecha" column - buscar específicamente "fecha de relevo" primero
+    let fechaIndex = headers.findIndex(h => h.includes('fecha de relevo') || h.includes('fecha relevo'))
+    if (fechaIndex === -1) {
+      // Si no encuentra "fecha de relevo", buscar "fecha" que NO sea otro campo
+      fechaIndex = headers.findIndex(h => 
+        (h.includes('fecha') && !h.includes('alta') && !h.includes('nacimiento'))
+      )
+    }
     
-    // Find "Relevador por:" column
-    const relevadorIndex = headers.findIndex(h => 
-      h.includes('relevador') || h.includes('relevado por') || h.includes('censado por')
-    )
+    // Find "Relevado por:" column - BÚSQUEDA MUY ESPECÍFICA
+    // La columna se llama exactamente "Relevado por:" o similar
+    let relevadorIndex = -1
+    
+    // Buscar por orden de prioridad
+    for (let i = 0; i < headers.length; i++) {
+      const h = headers[i]
+      // Coincidencia exacta primero
+      if (h === 'relevado por:' || h === 'relevado por') {
+        relevadorIndex = i
+        break
+      }
+    }
+    
+    // Si no encontró exacto, buscar variaciones
+    if (relevadorIndex === -1) {
+      for (let i = 0; i < headers.length; i++) {
+        const h = headers[i]
+        // Buscar columnas que empiecen con "relevado" pero NO sean "correo"
+        if ((h.startsWith('relevado') || h.startsWith('censado')) && !h.includes('correo') && !h.includes('email')) {
+          relevadorIndex = i
+          break
+        }
+      }
+    }
     
     return { fechaIndex, relevadorIndex }
   }
@@ -627,6 +656,10 @@ export default function Home() {
         if (imgIndex !== -1) {
           setEditedValues(prevValues => {
             const newValues = [...prevValues]
+            // Asegurar longitud correcta
+            while (newValues.length < sheetData.headers.length) {
+              newValues.push('')
+            }
             newValues[imgIndex] = data.imageUrl
             return newValues
           })
@@ -671,6 +704,10 @@ export default function Home() {
       )
       if (imgIndex !== -1) {
         const newValues = [...editedValues]
+        // Asegurar longitud correcta
+        while (newValues.length < sheetData.headers.length) {
+          newValues.push('')
+        }
         newValues[imgIndex] = ''
         setEditedValues(newValues)
       }
@@ -719,7 +756,11 @@ export default function Home() {
       const rowId = sheetData.data[rowIndex][0]
 
       // Preparar los valores a guardar (copiar fila actual y actualizar coordenadas)
+      // Asegurar que el array tenga la misma longitud que los headers
       const valuesToSave = [...sheetData.data[rowIndex]]
+      while (valuesToSave.length < sheetData.headers.length) {
+        valuesToSave.push('')
+      }
       valuesToSave[latIndex] = location.latitude.toFixed(6)
       valuesToSave[lngIndex] = location.longitude.toFixed(6)
 
@@ -731,7 +772,8 @@ export default function Home() {
         },
         body: JSON.stringify({
           rowId: rowId,
-          values: valuesToSave
+          values: valuesToSave,
+          sheetName: adminSelectedSheet && adminSelectedSheet !== 'Todos' ? adminSelectedSheet : undefined
         })
       })
 
@@ -800,7 +842,12 @@ export default function Home() {
       const { fechaIndex, relevadorIndex } = getAutoFillIndexes()
       
       // Auto-fill date and relevador fields
+      // IMPORTANTE: Asegurar que el array tenga la misma longitud que los headers
+      // para evitar desplazamiento de columnas
       const valuesToSave = [...editedValues]
+      while (valuesToSave.length < sheetData.headers.length) {
+        valuesToSave.push('')
+      }
       
       // Set current date in fecha field
       if (fechaIndex !== -1) {
@@ -839,7 +886,8 @@ export default function Home() {
         },
         body: JSON.stringify({
           rowId: rowId,
-          values: valuesToSave
+          values: valuesToSave,
+          sheetName: adminSelectedSheet && adminSelectedSheet !== 'Todos' ? adminSelectedSheet : undefined
         })
       })
       
@@ -1094,9 +1142,9 @@ export default function Home() {
     const headersLower = headersToUse.map(h => String(h).toLowerCase().trim())
     const results: { fieldName: string; data: { label: string; count: number; color: string }[] }[] = []
     
-    // Encontrar índice de "Relevado por:"
+    // Encontrar índice de "Relevado por:" (usando includes como en getAutoFillIndexes)
     const relevadorIndex = headersLower.findIndex(h => 
-      h === 'relevado por:' || h === 'relevador' || h === 'relevado por'
+      h.includes('relevador') || h.includes('relevado por') || h.includes('censado por')
     )
     
     // Filtrar solo filas relevadas
@@ -1105,19 +1153,27 @@ export default function Home() {
       return String(row[relevadorIndex] || '').trim() !== ''
     })
     
-    // Campos a analizar
+    // Campos a analizar (misma lista que statsFields para consistencia)
     const fieldsToAnalyze = [
-      'paquete digital',
-      'tipo de local',
       'estado kiosco',
-      'competencia',
-      'venta de productos no editoriales',
+      'dias de atención',
+      'dias de atencion',
+      'horario',
+      'escaparate',
+      'ubicación',
+      'ubicacion',
+      'fachada puesto',
+      'fachada de puesto',
       'venta productos no editoriales',
+      'venta de productos no editoriales',
       'suscripciones',
       'mayor venta',
       'utiliza parada online',
       'utiliza parada online?',
-      'reparto'
+      'reparto',
+      'paquete digital',
+      'tipo de local',
+      'competencia'
     ]
     
     // Colores para gráficos

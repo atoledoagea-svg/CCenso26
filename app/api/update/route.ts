@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
 
     // Obtener datos del body
     const body = await request.json()
-    const { rowId, values } = body
+    const { rowId, values, sheetName: requestedSheetName } = body
 
     if (!rowId || !values || !Array.isArray(values)) {
       return NextResponse.json(
@@ -74,61 +74,115 @@ export async function POST(request: NextRequest) {
     const sheets = getSheetsClient(accessToken)
 
     try {
-      // Determinar qué hoja usar: la asignada del usuario o la primera hoja (para admin)
-      let sheetName: string
-      if (!userInfo.isAdmin && assignedSheet) {
+      // Determinar qué hoja usar:
+      // 1. Si es admin y especificó una hoja en la request, usar esa
+      // 2. Si no es admin y tiene hoja asignada, usar la asignada
+      // 3. Si es admin y tiene "Todos" (sin hoja específica), buscar en todas las hojas
+      // 4. Si no, usar la primera hoja
+      let sheetName: string = ''
+      let actualRowNumber = -1
+      
+      if (userInfo.isAdmin && requestedSheetName) {
+        sheetName = requestedSheetName
+        console.log('Admin usando hoja seleccionada:', sheetName)
+      } else if (!userInfo.isAdmin && assignedSheet) {
         sheetName = assignedSheet
-        console.log('Usando hoja asignada:', sheetName)
+        console.log('Usuario usando hoja asignada:', sheetName)
+      } else if (userInfo.isAdmin) {
+        // Admin con "Todos" seleccionado - buscar el ID en todas las hojas
+        console.log('Admin con Todos - buscando ID en todas las hojas')
+        
+        // Obtener lista de hojas
+        const metaResponse = await sheets.spreadsheets.get({
+          spreadsheetId: SPREADSHEET_ID,
+          fields: 'sheets.properties.title',
+        })
+        
+        const sheetsList = metaResponse.data.sheets || []
+        const excludedSheets = ['Permisos', 'Actividad', 'Hoja 1', 'Hoja 2']
+        const availableSheets = sheetsList
+          .map(sheet => sheet.properties?.title || '')
+          .filter(name => name && !excludedSheets.includes(name))
+        
+        // Buscar el ID en cada hoja
+        for (const currentSheet of availableSheets) {
+          console.log(`Buscando ID "${rowId}" en hoja "${currentSheet}"...`)
+          
+          const response = await sheets.spreadsheets.values.get({
+            spreadsheetId: SPREADSHEET_ID,
+            range: `'${currentSheet}'!A2:A`,
+          })
+          
+          const ids = response.data.values || []
+          for (let i = 0; i < ids.length; i++) {
+            const cellId = String(ids[i]?.[0] || '').trim().toLowerCase()
+            if (cellId === rowId.toLowerCase()) {
+              sheetName = currentSheet
+              actualRowNumber = i + 2
+              console.log(`ID encontrado en hoja "${sheetName}" fila ${actualRowNumber}`)
+              break
+            }
+          }
+          
+          if (actualRowNumber !== -1) break
+        }
+        
+        if (actualRowNumber === -1) {
+          console.error('ID no encontrado en ninguna hoja')
+          return NextResponse.json(
+            {
+              error: `No se encontró el registro con ID "${rowId}" en ninguna hoja`,
+              details: { searchedId: rowId, searchedSheets: availableSheets }
+            },
+            { status: 404 }
+          )
+        }
       } else {
         sheetName = await getFirstSheetName(accessToken)
         console.log('Usando hoja principal:', sheetName)
       }
 
-      // Buscar la fila por ID en lugar de usar rowNumber
-      console.log('Buscando fila con ID:', rowId)
+      // Si ya encontramos la fila (caso admin con Todos), saltar la búsqueda
+      if (actualRowNumber === -1) {
+        // Buscar la fila por ID en la hoja específica
+        console.log('Buscando fila con ID:', rowId, 'en hoja:', sheetName)
 
-      // Obtener todas las filas de datos (empezando desde la fila 2, saltando headers)
-      const allDataResponse = await sheets.spreadsheets.values.get({
-        spreadsheetId: SPREADSHEET_ID,
-        range: `${sheetName}!A2:AM`,
-      })
+        const allDataResponse = await sheets.spreadsheets.values.get({
+          spreadsheetId: SPREADSHEET_ID,
+          range: `'${sheetName}'!A2:AM`,
+        })
 
-      const allRows = allDataResponse.data.values || []
-      console.log(`Total de filas de datos obtenidas: ${allRows.length}`)
+        const allRows = allDataResponse.data.values || []
+        console.log(`Total de filas de datos obtenidas: ${allRows.length}`)
 
-      // Buscar la fila que tenga el ID correcto
-      let actualRowNumber = -1
-      for (let i = 0; i < allRows.length; i++) {
-        const row = allRows[i]
-        if (row && row.length > 0) {
-          const cellId = String(row[0] || '').trim().toLowerCase()
-          console.log(`Comparando fila ${i + 2}: "${cellId}" con "${rowId.toLowerCase()}"`)
-          if (cellId === rowId.toLowerCase()) {
-            actualRowNumber = i + 2 // +2 porque empezamos desde fila 2
-            console.log(`ID encontrado en fila ${actualRowNumber}`)
-            break
+        // Buscar la fila que tenga el ID correcto
+        for (let i = 0; i < allRows.length; i++) {
+          const row = allRows[i]
+          if (row && row.length > 0) {
+            const cellId = String(row[0] || '').trim().toLowerCase()
+            if (cellId === rowId.toLowerCase()) {
+              actualRowNumber = i + 2 // +2 porque empezamos desde fila 2
+              console.log(`ID encontrado en fila ${actualRowNumber}`)
+              break
+            }
           }
+        }
+
+        if (actualRowNumber === -1) {
+          console.error('ID no encontrado en el Sheet')
+          return NextResponse.json(
+            {
+              error: `No se encontró el registro con ID "${rowId}" en la hoja "${sheetName}"`,
+              details: { searchedId: rowId, sheetName: sheetName }
+            },
+            { status: 404 }
+          )
         }
       }
 
-      if (actualRowNumber === -1) {
-        console.error('ID no encontrado en el Sheet')
-        return NextResponse.json(
-          {
-            error: `No se encontró el registro con ID "${rowId}" en el Sheet`,
-            details: {
-              searchedId: rowId,
-              totalRows: allRows.length,
-              sheetName: sheetName
-            }
-          },
-          { status: 404 }
-        )
-      }
-
       // Actualizar la fila encontrada
-      const range = `${sheetName}!A${actualRowNumber}:AM${actualRowNumber}`
-      console.log('Actualizando rango:', range, 'con valores:', values)
+      const range = `'${sheetName}'!A${actualRowNumber}:AM${actualRowNumber}`
+      console.log('Actualizando rango:', range)
 
       await sheets.spreadsheets.values.update({
         spreadsheetId: SPREADSHEET_ID,
