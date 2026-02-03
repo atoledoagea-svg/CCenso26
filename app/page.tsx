@@ -1124,10 +1124,13 @@ export default function Home() {
       valuesToSave[lngIndex] = longitude.toFixed(6)
       
       // Guardar dispositivo usado
-      const dispositivoIndex = headers.findIndex(h => h === 'dispositivo')
+      const dispositivoIndex = headers.findIndex(h => 
+        h === 'dispositivo' || h.includes('dispositivo') || h === 'device'
+      )
       if (dispositivoIndex !== -1) {
         const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
         valuesToSave[dispositivoIndex] = isMobile ? 'Mobile' : 'PC'
+        console.log('Dispositivo guardado en ubicación:', valuesToSave[dispositivoIndex])
       }
 
       const response = await fetch('/api/update', {
@@ -1249,10 +1252,15 @@ export default function Home() {
       }
       
       // Detectar y guardar dispositivo
-      const dispositivoIndex = headers.findIndex(h => h === 'dispositivo')
+      const dispositivoIndex = headers.findIndex(h => 
+        h === 'dispositivo' || h.includes('dispositivo') || h === 'device'
+      )
       if (dispositivoIndex !== -1) {
         const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
         valuesToSave[dispositivoIndex] = isMobile ? 'Mobile' : 'PC'
+        console.log('Dispositivo guardado:', valuesToSave[dispositivoIndex], 'en índice:', dispositivoIndex)
+      } else {
+        console.log('Columna DISPOSITIVO no encontrada. Headers:', headers)
       }
       
       // Agregar coordenadas GPS si fueron capturadas
@@ -2625,7 +2633,7 @@ export default function Home() {
                     if (isComentarioFotoField) return null
                     
                     // Ocultar campo DISPOSITIVO (se guarda automáticamente)
-                    const isDispositivoField = headerLower === 'dispositivo'
+                    const isDispositivoField = headerLower === 'dispositivo' || headerLower.includes('dispositivo')
                     if (isDispositivoField) return null
                     
                     const isEstadoKioscoField = headerLower.includes('estado') && headerLower.includes('kiosco')
@@ -5134,7 +5142,8 @@ export default function Home() {
                     <th className="actions-col">Acciones</th>
                     {sheetData.headers.map((header, idx) => {
                       // Ocultar columna DISPOSITIVO en la tabla
-                      if (header.toLowerCase().trim() === 'dispositivo') return null
+                      const headerLower = header.toLowerCase().trim()
+                      if (headerLower === 'dispositivo' || headerLower.includes('dispositivo')) return null
                       return <th key={idx}>{header}</th>
                     })}
                   </tr>
@@ -5171,7 +5180,8 @@ export default function Home() {
                         </td>
                         {row.map((cell, cellIdx) => {
                           // Ocultar columna DISPOSITIVO en la tabla
-                          if (sheetData.headers[cellIdx]?.toLowerCase().trim() === 'dispositivo') return null
+                          const headerLower = sheetData.headers[cellIdx]?.toLowerCase().trim() || ''
+                          if (headerLower === 'dispositivo' || headerLower.includes('dispositivo')) return null
                           return <td key={cellIdx}>{String(cell || '')}</td>
                         })}
                       </tr>
