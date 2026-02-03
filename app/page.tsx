@@ -122,6 +122,12 @@ export default function Home() {
   
   // Nuevo PDV states
   const [showNuevoPdvModal, setShowNuevoPdvModal] = useState(false)
+  
+  // Mobile navigation modals
+  const [showMobileStats, setShowMobileStats] = useState(false)
+  const [showMobileSearch, setShowMobileSearch] = useState(false)
+  const [mobileSearchQuery, setMobileSearchQuery] = useState('')
+  const [mobileSearchType, setMobileSearchType] = useState<'id' | 'paquete'>('id')
   const [showNuevoPdvForm, setShowNuevoPdvForm] = useState(false)
   const [savingNuevoPdv, setSavingNuevoPdv] = useState(false)
   const [nuevoPdvData, setNuevoPdvData] = useState({
@@ -2541,6 +2547,20 @@ export default function Home() {
   // Dashboard Screen
   return (
     <div className="dashboard">
+      {/* Mobile Reload Button */}
+      <button 
+        className={`mobile-reload-btn ${loadingData ? 'loading' : ''}`}
+        onClick={() => {
+          if (accessToken && !loadingData) {
+            loadSheetData(accessToken, adminSelectedSheet || '')
+          }
+        }}
+        disabled={loadingData}
+        title="Recargar datos"
+      >
+        🔄
+      </button>
+
       {/* Edit Modal */}
       {editingRow !== null && sheetData && (() => {
         const { fechaIndex, relevadorIndex } = getAutoFillIndexes()
@@ -5253,6 +5273,228 @@ export default function Home() {
           </div>
         )}
       </main>
+
+      {/* Mobile Bottom Navigation */}
+      {isAuthorized && (
+        <nav className="mobile-bottom-nav">
+          <button 
+            className={`mobile-nav-item ${!showAdminSidebar && !editingRow && locationModalRow === null ? 'active' : ''}`}
+            onClick={() => {
+              setShowAdminSidebar(false)
+              setEditingRow(null)
+              setLocationModalRow(null)
+            }}
+          >
+            <span className="nav-icon">🏠</span>
+            <span className="nav-label">Inicio</span>
+          </button>
+          
+          <button 
+            className={`mobile-nav-item ${showMobileSearch ? 'active' : ''}`}
+            onClick={() => {
+              setShowMobileSearch(true)
+              setMobileSearchQuery('')
+            }}
+          >
+            <span className="nav-icon">🔍</span>
+            <span className="nav-label">Buscar</span>
+          </button>
+          
+          <button 
+            className="mobile-nav-item nav-center"
+            onClick={() => setShowNuevoPdvModal(true)}
+          >
+            <span className="nav-icon">＋</span>
+          </button>
+          
+          {sheetData?.permissions?.isAdmin ? (
+            <button 
+              className={`mobile-nav-item ${showAdminSidebar ? 'active' : ''}`}
+              onClick={() => setShowAdminSidebar(!showAdminSidebar)}
+            >
+              <span className="nav-icon">⚙️</span>
+              <span className="nav-label">Admin</span>
+            </button>
+          ) : (
+            <button 
+              className={`mobile-nav-item ${showMobileStats ? 'active' : ''}`}
+              onClick={() => setShowMobileStats(!showMobileStats)}
+            >
+              <span className="nav-icon">📊</span>
+              <span className="nav-label">Stats</span>
+            </button>
+          )}
+          
+          <button 
+            className="mobile-nav-item"
+            onClick={() => {
+              if (window.confirm('¿Deseas cerrar sesión?')) {
+                handleSignoutClick()
+              }
+            }}
+          >
+            <span className="nav-icon">🚪</span>
+            <span className="nav-label">Salir</span>
+          </button>
+        </nav>
+      )}
+
+      {/* Mobile Stats Modal */}
+      {showMobileStats && sheetData && (
+        <div className="mobile-stats-modal">
+          <button className="stats-close" onClick={() => setShowMobileStats(false)}>✕</button>
+          <div className="stats-header">
+            <h3>📊 Tu Progreso</h3>
+          </div>
+          {(() => {
+            const allowedIds = sheetData.permissions?.allowedIds || []
+            const total = allowedIds.length > 0 ? allowedIds.length : sheetData.data.length
+            const { relevadorIndex } = getAutoFillIndexes()
+            let relevados = 0
+            if (relevadorIndex !== -1) {
+              relevados = sheetData.data.filter(row => String(row[relevadorIndex] || '').trim() !== '').length
+            }
+            const faltantes = total - relevados
+            const progreso = total > 0 ? Math.round((relevados / total) * 100) : 0
+            
+            return (
+              <>
+                <div className="stats-grid">
+                  <div className="stat-item relevados">
+                    <span className="stat-number">{relevados}</span>
+                    <span className="stat-label">Relevados</span>
+                  </div>
+                  <div className="stat-item pendientes">
+                    <span className="stat-number">{faltantes}</span>
+                    <span className="stat-label">Pendientes</span>
+                  </div>
+                  <div className="stat-item total">
+                    <span className="stat-number">{total}</span>
+                    <span className="stat-label">Total</span>
+                  </div>
+                </div>
+                <div className="progress-section">
+                  <div className="progress-label">Progreso General</div>
+                  <div className="progress-value">{progreso}%</div>
+                </div>
+              </>
+            )
+          })()}
+        </div>
+      )}
+
+      {/* Mobile Search Modal */}
+      {showMobileSearch && sheetData && (
+        <div className="mobile-search-modal">
+          <div className="search-header">
+            <button className="search-back" onClick={() => setShowMobileSearch(false)}>←</button>
+            <div className="search-input-wrapper">
+              <span className="search-icon">🔍</span>
+              <input
+                type="text"
+                placeholder="Buscar..."
+                value={mobileSearchQuery}
+                onChange={(e) => setMobileSearchQuery(e.target.value)}
+                autoFocus
+              />
+            </div>
+          </div>
+          
+          <div className="search-filters">
+            <button 
+              className={`filter-chip ${mobileSearchType === 'id' ? 'active' : ''}`}
+              onClick={() => setMobileSearchType('id')}
+            >
+              Por ID
+            </button>
+            <button 
+              className={`filter-chip ${mobileSearchType === 'paquete' ? 'active' : ''}`}
+              onClick={() => setMobileSearchType('paquete')}
+            >
+              Por Paquete
+            </button>
+          </div>
+          
+          <div className="search-results">
+            {(() => {
+              const query = mobileSearchQuery.toLowerCase().trim()
+              if (!query) {
+                return (
+                  <div className="no-results">
+                    <div className="no-results-icon">🔍</div>
+                    <p>Escribe para buscar registros</p>
+                  </div>
+                )
+              }
+              
+              const paqueteIndex = sheetData.headers.findIndex(h => 
+                h.toLowerCase().includes('paquete')
+              )
+              const { relevadorIndex } = getAutoFillIndexes()
+              
+              const results = sheetData.data.filter((row, idx) => {
+                if (mobileSearchType === 'id') {
+                  return String(row[0] || '').toLowerCase().includes(query)
+                } else {
+                  return paqueteIndex !== -1 && String(row[paqueteIndex] || '').toLowerCase().includes(query)
+                }
+              }).slice(0, 20) // Limitar a 20 resultados
+              
+              if (results.length === 0) {
+                return (
+                  <div className="no-results">
+                    <div className="no-results-icon">😕</div>
+                    <p>No se encontraron resultados</p>
+                  </div>
+                )
+              }
+              
+              return results.map((row, idx) => {
+                const originalIndex = sheetData.data.indexOf(row)
+                const isRelevado = relevadorIndex !== -1 && String(row[relevadorIndex] || '').trim() !== ''
+                const paquete = paqueteIndex !== -1 ? String(row[paqueteIndex] || '') : ''
+                
+                return (
+                  <div 
+                    key={idx}
+                    className="search-result-item"
+                  >
+                    <div className="result-info">
+                      <div className="result-id">ID: {row[0]}</div>
+                      {paquete && <div className="result-details">Paquete: {paquete}</div>}
+                    </div>
+                    <span className={`result-status ${isRelevado ? 'relevado' : 'pendiente'}`}>
+                      {isRelevado ? '✓ Relevado' : 'Pendiente'}
+                    </span>
+                    <div className="result-actions">
+                      <button 
+                        className="result-action-btn edit"
+                        onClick={() => {
+                          setShowMobileSearch(false)
+                          handleEditRow(originalIndex)
+                        }}
+                        title="Editar"
+                      >
+                        ✎
+                      </button>
+                      <button 
+                        className="result-action-btn location"
+                        onClick={() => {
+                          setShowMobileSearch(false)
+                          handleLocationClick(originalIndex)
+                        }}
+                        title="Ubicación"
+                      >
+                        📍
+                      </button>
+                    </div>
+                  </div>
+                )
+              })
+            })()}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
