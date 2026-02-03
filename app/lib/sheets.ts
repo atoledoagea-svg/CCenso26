@@ -115,8 +115,9 @@ export async function getAllData(accessToken: string, sheetName: string = '') {
 
 /**
  * Hojas a excluir del cálculo de estadísticas y de la vista "Todos"
+ * Solo se incluyen las hojas de trabajo: YAMILA, ROMINA, GISELA, FABIANA, ANABELLA
  */
-const STATS_EXCLUDED_SHEETS = ['Permisos', 'Actividad', 'Hoja 2', 'Hoja 1']
+const STATS_EXCLUDED_SHEETS = ['Permisos', 'Actividad', 'Hoja 2', 'Hoja 1', 'LOGs GPS', 'ALTA PDV']
 
 /**
  * Obtiene todos los datos combinados de todas las hojas (excepto las excluidas y Hoja 1)
