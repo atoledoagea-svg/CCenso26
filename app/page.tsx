@@ -264,7 +264,13 @@ export default function Home() {
       if (response.ok) {
         const data = await response.json()
         if (data.sheets) {
-          setAvailableSheets(data.sheets)
+          // Filtrar hojas del sistema que no deben aparecer en el selector
+          const filteredSheets = data.sheets.filter((sheet: string) => 
+            sheet !== 'LOGs GPS' && 
+            sheet !== 'Permisos' && 
+            sheet !== 'ALTA PDV'
+          )
+          setAvailableSheets(filteredSheets)
         }
       }
     } catch (err) {
