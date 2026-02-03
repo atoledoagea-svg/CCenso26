@@ -1,7 +1,20 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import Image from 'next/image'
+import dynamic from 'next/dynamic'
+
+// Importar MapPicker dinámicamente (Leaflet necesita window)
+const MapPicker = dynamic(() => import('./components/MapPicker'), { 
+  ssr: false,
+  loading: () => <div className="map-loading">Cargando mapa...</div>
+})
+
+// Importar GpsTrackingMap dinámicamente (Leaflet necesita window)
+const GpsTrackingMap = dynamic(() => import('./components/GpsTrackingMap'), { 
+  ssr: false,
+  loading: () => <div className="map-loading">Cargando mapa de seguimiento...</div>
+})
 
 declare global {
   interface Window {
@@ -65,7 +78,14 @@ export default function Home() {
   
   // Admin sidebar state
   const [showAdminSidebar, setShowAdminSidebar] = useState(false)
-  const [adminSidebarTab, setAdminSidebarTab] = useState<'hojas' | 'usuarios' | 'stats' | 'reportes'>('hojas')
+  const [adminSidebarTab, setAdminSidebarTab] = useState<'hojas' | 'usuarios' | 'stats' | 'reportes' | 'gps'>('hojas')
+  
+  // GPS Tracking states (admin)
+  const [showGpsModal, setShowGpsModal] = useState(false)
+  const [gpsLogs, setGpsLogs] = useState<any[]>([])
+  const [gpsUsers, setGpsUsers] = useState<string[]>([])
+  const [selectedGpsUser, setSelectedGpsUser] = useState<string>('')
+  const [loadingGpsLogs, setLoadingGpsLogs] = useState(false)
   
   // Sheets assignment states
   const [availableSheets, setAvailableSheets] = useState<string[]>([])
@@ -330,6 +350,141 @@ export default function Home() {
     }
   }
 
+  // Referencia para controlar el último envío de GPS (evitar spam)
+  const lastGpsLogTime = useRef<number>(0)
+  const GPS_LOG_COOLDOWN = 5 * 60 * 1000 // 5 minutos entre logs
+
+  // Función para enviar log de GPS al servidor
+  const sendGpsLog = useCallback(async (token: string, reason: string = 'login') => {
+    // Solo enviar en mobile
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+    
+    if (!isMobile) {
+      return
+    }
+
+    // Verificar cooldown (no enviar más de 1 log cada 5 minutos)
+    const now = Date.now()
+    if (now - lastGpsLogTime.current < GPS_LOG_COOLDOWN) {
+      console.log('GPS Log: Cooldown activo, esperando...')
+      return
+    }
+
+    try {
+      // Obtener ubicación
+      if (!navigator.geolocation) {
+        console.log('GPS Log: Geolocalización no soportada')
+        return
+      }
+
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          try {
+            const response = await fetch('/api/log-gps', {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                latitude: position.coords.latitude,
+                longitude: position.coords.longitude,
+                userAgent: navigator.userAgent,
+                isMobile: true,
+                reason: reason // 'login', 'foreground', 'focus'
+              })
+            })
+
+            if (response.ok) {
+              console.log(`GPS Log: Ubicación guardada (${reason})`)
+              lastGpsLogTime.current = Date.now()
+            }
+          } catch (error) {
+            console.error('GPS Log: Error enviando datos', error)
+          }
+        },
+        (error) => {
+          console.log('GPS Log: No se pudo obtener ubicación -', error.message)
+        },
+        {
+          enableHighAccuracy: false,
+          timeout: 10000,
+          maximumAge: 0 // Siempre obtener ubicación fresca
+        }
+      )
+    } catch (error) {
+      console.error('GPS Log: Error general', error)
+    }
+  }, [])
+
+  // Efecto para enviar GPS log cuando el usuario se autentica
+  useEffect(() => {
+    if (isAuthorized && accessToken) {
+      // Enviar log inicial después de login
+      const timer = setTimeout(() => {
+        sendGpsLog(accessToken, 'login')
+      }, 2000)
+      
+      return () => clearTimeout(timer)
+    }
+  }, [isAuthorized, accessToken, sendGpsLog])
+
+  // Función para cargar logs de GPS (solo admin)
+  const loadGpsLogs = useCallback(async (filterEmail?: string) => {
+    if (!accessToken) return
+    
+    setLoadingGpsLogs(true)
+    try {
+      const url = filterEmail 
+        ? `/api/gps-logs?email=${encodeURIComponent(filterEmail)}`
+        : '/api/gps-logs'
+      
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`
+        }
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        setGpsLogs(data.logs || [])
+        setGpsUsers(data.users || [])
+      }
+    } catch (error) {
+      console.error('Error cargando GPS logs:', error)
+    } finally {
+      setLoadingGpsLogs(false)
+    }
+  }, [accessToken])
+
+  // Efecto para detectar cuando la app vuelve de segundo plano
+  useEffect(() => {
+    if (!isAuthorized || !accessToken) return
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        // La app volvió al primer plano
+        console.log('GPS Log: App volvió al primer plano')
+        sendGpsLog(accessToken, 'foreground')
+      }
+    }
+
+    const handleFocus = () => {
+      // La ventana obtuvo foco
+      sendGpsLog(accessToken, 'focus')
+    }
+
+    // Escuchar cambios de visibilidad (cuando vuelve de segundo plano)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    // Escuchar cuando la ventana obtiene foco
+    window.addEventListener('focus', handleFocus)
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      window.removeEventListener('focus', handleFocus)
+    }
+  }, [isAuthorized, accessToken, sendGpsLog])
+
   const handleEditRow = (rowIndex: number) => {
     if (sheetData) {
       // Copiar los datos de la fila y asegurar que tenga la misma longitud que los headers
@@ -543,10 +698,10 @@ export default function Home() {
   }
 
   // Función para obtener la ubicación GPS actual
-  const getCurrentLocation = (): Promise<{latitude: number, longitude: number} | null> => {
+  const getCurrentLocation = (): Promise<{latitude: number, longitude: number, error?: string} | null> => {
     return new Promise((resolve) => {
       if (!navigator.geolocation) {
-        console.log('Geolocalización no soportada')
+        alert('⚠️ Tu navegador no soporta geolocalización.\nIntenta con otro navegador.')
         resolve(null)
         return
       }
@@ -559,12 +714,26 @@ export default function Home() {
           })
         },
         (error) => {
-          console.log('Error obteniendo ubicación:', error.message)
+          let errorMessage = ''
+          switch (error.code) {
+            case error.PERMISSION_DENIED:
+              errorMessage = '⚠️ Permiso de ubicación denegado.\n\nPor favor, permite el acceso a la ubicación en la configuración de tu navegador.'
+              break
+            case error.POSITION_UNAVAILABLE:
+              errorMessage = '⚠️ Ubicación no disponible.\n\nAsegúrate de tener el GPS activado y estar en un lugar con buena señal.'
+              break
+            case error.TIMEOUT:
+              errorMessage = '⚠️ Tiempo de espera agotado.\n\nNo se pudo obtener la ubicación. Intenta de nuevo en un lugar con mejor señal GPS.'
+              break
+            default:
+              errorMessage = '⚠️ Error desconocido al obtener ubicación.\n\nIntenta de nuevo.'
+          }
+          alert(errorMessage)
           resolve(null)
         },
         {
           enableHighAccuracy: true,
-          timeout: 10000,
+          timeout: 15000, // Aumentado a 15 segundos
           maximumAge: 0
         }
       )
@@ -647,11 +816,26 @@ export default function Home() {
       })
 
       if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Error al subir imagen')
+        let errorMessage = 'Error al subir imagen'
+        try {
+          const errorData = await response.json()
+          errorMessage = errorData.error || errorMessage
+        } catch {
+          if (response.status === 401) {
+            errorMessage = 'Sesión expirada. Cierra sesión y vuelve a ingresar.'
+          } else if (response.status === 413) {
+            errorMessage = 'La imagen es demasiado grande. Máximo 32MB.'
+          } else if (response.status >= 500) {
+            errorMessage = 'Error del servidor. Intenta de nuevo en unos minutos.'
+          }
+        }
+        throw new Error(errorMessage)
       }
 
       const data = await response.json()
+      if (!data.imageUrl) {
+        throw new Error('El servidor no devolvió la URL de la imagen. Intenta de nuevo.')
+      }
       setUploadedImageUrl(data.imageUrl)
 
       // Actualizar solo el campo IMG en editedValues
@@ -722,10 +906,147 @@ export default function Home() {
 
   // Estado para indicar qué fila está guardando ubicación
   const [savingLocationRow, setSavingLocationRow] = useState<number | null>(null)
+  const [locationModalRow, setLocationModalRow] = useState<number | null>(null)
+  const [showMapPicker, setShowMapPicker] = useState(false)
+  const [manualCoords, setManualCoords] = useState<{ lat: number; lng: number } | null>(null)
+  const [savingManualLocation, setSavingManualLocation] = useState(false)
+  const [addressSearch, setAddressSearch] = useState('')
+  const [searchingAddress, setSearchingAddress] = useState(false)
+
+  // Función para abrir el modal de opciones de ubicación
+  const handleLocationClick = (rowIndex: number) => {
+    setLocationModalRow(rowIndex)
+  }
+
+  // Función para guardar ubicación usando GPS actual
+  const handleSaveCurrentLocation = async () => {
+    if (locationModalRow === null) return
+    
+    // Confirmación para evitar clics accidentales
+    const confirmed = window.confirm(
+      '📍 ¿Guardar tu ubicación actual?\n\n' +
+      'Se obtendrán las coordenadas GPS de tu dispositivo y se guardarán en este registro.'
+    )
+    if (!confirmed) return
+    
+    const rowToSave = locationModalRow
+    // No cerrar el modal hasta que termine - mostrar animación
+    await handleSaveLocation(rowToSave, 'gps')
+    setLocationModalRow(null)
+  }
+
+  // Función para buscar dirección y obtener coordenadas
+  const handleSearchAddress = async () => {
+    if (!addressSearch.trim()) {
+      alert('⚠️ Ingresa una dirección para buscar')
+      return
+    }
+
+    setSearchingAddress(true)
+    try {
+      // Agregar ", Argentina" para mejorar resultados
+      const searchQuery = addressSearch.includes('Argentina') 
+        ? addressSearch 
+        : `${addressSearch}, Buenos Aires, Argentina`
+      
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=1`,
+        {
+          headers: {
+            'Accept-Language': 'es'
+          }
+        }
+      )
+
+      if (!response.ok) {
+        throw new Error('Error en la búsqueda')
+      }
+
+      const results = await response.json()
+      
+      if (results.length === 0) {
+        alert('📍 No se encontró la dirección.\n\nIntenta con otro formato:\n- "Santa Fe 300, CABA"\n- "Av. Corrientes 1234"\n- "Calle 50 entre 7 y 8, La Plata"')
+        return
+      }
+
+      const { lat, lon, display_name } = results[0]
+      setManualCoords({ lat: parseFloat(lat), lng: parseFloat(lon) })
+      
+      // Mostrar dirección encontrada
+      alert(`✅ Ubicación encontrada:\n\n${display_name}\n\nAhora puedes ajustar el pin si es necesario.`)
+    } catch (error) {
+      alert('❌ Error buscando dirección.\n\nIntenta de nuevo o ingresa las coordenadas manualmente.')
+    } finally {
+      setSearchingAddress(false)
+    }
+  }
+
+  // Función para abrir el selector de mapa
+  const handleOpenMapPicker = () => {
+    if (locationModalRow === null || !sheetData) return
+    
+    // Obtener coordenadas existentes si las hay para centrar el mapa
+    const headers = sheetData.headers.map(h => h.toLowerCase().trim())
+    const latIndex = headers.findIndex(h => h === 'latitud' || h === 'lat')
+    const lngIndex = headers.findIndex(h => h === 'longitud' || h === 'lng' || h === 'long')
+    
+    let initialLat = -34.6037 // Buenos Aires por defecto
+    let initialLng = -58.3816
+    
+    if (latIndex !== -1 && lngIndex !== -1) {
+      const existingLat = parseFloat(String(sheetData.data[locationModalRow][latIndex] || ''))
+      const existingLng = parseFloat(String(sheetData.data[locationModalRow][lngIndex] || ''))
+      if (!isNaN(existingLat) && !isNaN(existingLng)) {
+        initialLat = existingLat
+        initialLng = existingLng
+      }
+    }
+    
+    setManualCoords({ lat: initialLat, lng: initialLng })
+    setAddressSearch('') // Limpiar búsqueda anterior
+    setShowMapPicker(true)
+  }
+
+  // Función para guardar ubicación manual del mapa
+  const handleSaveManualLocation = async () => {
+    if (locationModalRow === null) {
+      alert('⚠️ Error interno: No hay fila seleccionada.\n\nCierra el modal y vuelve a intentar.')
+      return
+    }
+    if (!manualCoords) {
+      alert('⚠️ No hay coordenadas seleccionadas.\n\nSelecciona una ubicación en el mapa.')
+      return
+    }
+    if (isNaN(manualCoords.lat) || isNaN(manualCoords.lng)) {
+      alert('⚠️ Coordenadas inválidas.\n\nSelecciona una ubicación válida en el mapa.')
+      return
+    }
+    if (manualCoords.lat < -90 || manualCoords.lat > 90 || manualCoords.lng < -180 || manualCoords.lng > 180) {
+      alert('⚠️ Coordenadas fuera de rango.\n\nLatitud debe estar entre -90 y 90.\nLongitud debe estar entre -180 y 180.')
+      return
+    }
+    
+    setSavingManualLocation(true)
+    try {
+      await handleSaveLocation(locationModalRow, 'manual', manualCoords)
+      setShowMapPicker(false)
+      setLocationModalRow(null)
+      setManualCoords(null)
+    } finally {
+      setSavingManualLocation(false)
+    }
+  }
 
   // Función para guardar solo la ubicación GPS de una fila
-  const handleSaveLocation = async (rowIndex: number) => {
-    if (!accessToken || !sheetData) return
+  const handleSaveLocation = async (rowIndex: number, mode: 'gps' | 'manual' = 'gps', coords?: { lat: number; lng: number }) => {
+    if (!accessToken) {
+      alert('⚠️ Sesión expirada.\n\nPor favor, cierra sesión y vuelve a ingresar.')
+      return
+    }
+    if (!sheetData) {
+      alert('⚠️ No hay datos cargados.\n\nRecarga la página e intenta de nuevo.')
+      return
+    }
 
     const headers = sheetData.headers.map(h => h.toLowerCase().trim())
     const latIndex = headers.findIndex(h => h === 'latitud' || h === 'lat')
@@ -736,27 +1057,25 @@ export default function Home() {
       return
     }
 
-    // Verificar si ya existen coordenadas
-    const existingLat = String(sheetData.data[rowIndex][latIndex] || '').trim()
-    const existingLng = String(sheetData.data[rowIndex][lngIndex] || '').trim()
-    
-    if (existingLat || existingLng) {
-      const confirmOverwrite = window.confirm(
-        `⚠️ Este registro ya tiene coordenadas guardadas:\n\n` +
-        `📍 Latitud: ${existingLat || '(vacío)'}\n` +
-        `📍 Longitud: ${existingLng || '(vacío)'}\n\n` +
-        `¿Deseas sobrescribir con tu ubicación actual?`
-      )
-      if (!confirmOverwrite) return
-    }
-
-    // Obtener ubicación
     setSavingLocationRow(rowIndex)
     try {
-      const location = await getCurrentLocation()
-      if (!location) {
-        alert('⚠️ No se pudo obtener la ubicación GPS.\nAsegúrate de permitir el acceso a la ubicación.')
-        return
+      let latitude: number
+      let longitude: number
+
+      if (mode === 'manual' && coords) {
+        // Usar coordenadas manuales del mapa
+        latitude = coords.lat
+        longitude = coords.lng
+      } else {
+        // Obtener ubicación GPS actual
+        const location = await getCurrentLocation()
+        if (!location) {
+          alert('⚠️ No se pudo obtener la ubicación GPS.\nAsegúrate de permitir el acceso a la ubicación.')
+          setSavingLocationRow(null) // Resetear estado antes de salir
+          return
+        }
+        latitude = location.latitude
+        longitude = location.longitude
       }
 
       const rowId = sheetData.data[rowIndex][0]
@@ -767,8 +1086,8 @@ export default function Home() {
       while (valuesToSave.length < sheetData.headers.length) {
         valuesToSave.push('')
       }
-      valuesToSave[latIndex] = location.latitude.toFixed(6)
-      valuesToSave[lngIndex] = location.longitude.toFixed(6)
+      valuesToSave[latIndex] = latitude.toFixed(6)
+      valuesToSave[lngIndex] = longitude.toFixed(6)
 
       const response = await fetch('/api/update', {
         method: 'POST',
@@ -784,8 +1103,23 @@ export default function Home() {
       })
 
       if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Error guardando ubicación')
+        let errorMessage = 'Error guardando ubicación'
+        try {
+          const errorData = await response.json()
+          errorMessage = errorData.error || errorMessage
+        } catch {
+          // Si no puede parsear JSON, usar mensaje por defecto
+          if (response.status === 401) {
+            errorMessage = 'Sesión expirada. Cierra sesión y vuelve a ingresar.'
+          } else if (response.status === 403) {
+            errorMessage = 'No tienes permiso para editar este registro.'
+          } else if (response.status === 404) {
+            errorMessage = 'Registro no encontrado. Recarga la página.'
+          } else if (response.status >= 500) {
+            errorMessage = 'Error del servidor. Intenta de nuevo en unos minutos.'
+          }
+        }
+        throw new Error(errorMessage)
       }
 
       // Actualizar datos locales
@@ -793,9 +1127,11 @@ export default function Home() {
       newData[rowIndex] = valuesToSave
       setSheetData({ ...sheetData, data: newData })
 
-      alert(`✅ Ubicación guardada\n📍 ${location.latitude.toFixed(6)}, ${location.longitude.toFixed(6)}`)
+      const modeText = mode === 'manual' ? '(manual)' : '(GPS)'
+      alert(`✅ Ubicación guardada ${modeText}\n📍 ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`)
     } catch (err: any) {
-      alert('Error: ' + err.message)
+      const errorMsg = err.message || 'Error desconocido'
+      alert(`❌ Error al guardar ubicación\n\n${errorMsg}`)
     } finally {
       setSavingLocationRow(null)
     }
@@ -1917,11 +2253,26 @@ export default function Home() {
       })
 
       if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Error al subir imagen')
+        let errorMessage = 'Error al subir imagen'
+        try {
+          const errorData = await response.json()
+          errorMessage = errorData.error || errorMessage
+        } catch {
+          if (response.status === 401) {
+            errorMessage = 'Sesión expirada. Cierra sesión y vuelve a ingresar.'
+          } else if (response.status === 413) {
+            errorMessage = 'La imagen es demasiado grande. Máximo 32MB.'
+          } else if (response.status >= 500) {
+            errorMessage = 'Error del servidor. Intenta de nuevo en unos minutos.'
+          }
+        }
+        throw new Error(errorMessage)
       }
 
       const data = await response.json()
+      if (!data.imageUrl) {
+        throw new Error('El servidor no devolvió la URL de la imagen. Intenta de nuevo.')
+      }
       setNuevoPdvImageUrl(data.imageUrl)
 
       // Mensaje de éxito con información de ubicación (usar setTimeout para que se muestre después del re-render)
@@ -3050,6 +3401,190 @@ export default function Home() {
         )
       })()}
 
+      {/* Modal de Opciones de Ubicación */}
+      {locationModalRow !== null && !showMapPicker && (
+        <div className="modal-overlay" onClick={() => setLocationModalRow(null)}>
+          <div className="modal-content modal-small location-options" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>📍 Opciones de Ubicación</h2>
+              <button className="modal-close" onClick={() => setLocationModalRow(null)}>×</button>
+            </div>
+            <div className="modal-body">
+              <p className="location-description">¿Cómo deseas agregar la ubicación?</p>
+              
+              {/* Mostrar coordenadas existentes si las hay */}
+              {(() => {
+                if (!sheetData) return null
+                const headers = sheetData.headers.map(h => h.toLowerCase().trim())
+                const latIndex = headers.findIndex(h => h === 'latitud' || h === 'lat')
+                const lngIndex = headers.findIndex(h => h === 'longitud' || h === 'lng' || h === 'long')
+                const existingLat = latIndex !== -1 ? String(sheetData.data[locationModalRow][latIndex] || '').trim() : ''
+                const existingLng = lngIndex !== -1 ? String(sheetData.data[locationModalRow][lngIndex] || '').trim() : ''
+                
+                if (existingLat || existingLng) {
+                  return (
+                    <div className="existing-coords-info">
+                      <strong>⚠️ Coordenadas actuales:</strong>
+                      <p>Lat: {existingLat || '(vacío)'}</p>
+                      <p>Lng: {existingLng || '(vacío)'}</p>
+                      <small>Se sobrescribirán al guardar</small>
+                    </div>
+                  )
+                }
+                return null
+              })()}
+              
+              <div className="location-buttons">
+                <button 
+                  className="btn-location-option btn-gps"
+                  onClick={handleSaveCurrentLocation}
+                  disabled={savingLocationRow !== null}
+                >
+                  {savingLocationRow !== null ? (
+                    <>
+                      <span className="btn-icon"><div className="saving-spinner-medium"></div></span>
+                      <span className="btn-text">Obteniendo ubicación...</span>
+                      <span className="btn-hint">Por favor espera</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="btn-icon">🛰️</span>
+                      <span className="btn-text">Utilizar ubicación actual</span>
+                      <span className="btn-hint">GPS automático</span>
+                    </>
+                  )}
+                </button>
+                
+                <button 
+                  className="btn-location-option btn-map"
+                  onClick={handleOpenMapPicker}
+                  disabled={savingLocationRow !== null}
+                >
+                  <span className="btn-icon">🗺️</span>
+                  <span className="btn-text">Agregar ubicación manual</span>
+                  <span className="btn-hint">Seleccionar en mapa</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Selector de Mapa */}
+      {showMapPicker && manualCoords && (
+        <div className="modal-overlay">
+          <div className="modal-content modal-map" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>🗺️ Seleccionar Ubicación</h2>
+              <button className="modal-close" onClick={() => {
+                setShowMapPicker(false)
+                setManualCoords(null)
+              }}>×</button>
+            </div>
+            <div className="modal-body map-body">
+              <p className="map-instructions">📍 Busca una dirección o arrastra el marcador en el mapa</p>
+              <p className="map-instructions-hint">(Busca una dirección aproximada para poder ubicarla con mayor precisión)</p>
+              
+              {/* Buscador de direcciones */}
+              <div className="address-search">
+                <input
+                  type="text"
+                  placeholder="Ej: Santa Fe 300, CABA"
+                  value={addressSearch}
+                  onChange={(e) => setAddressSearch(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      handleSearchAddress()
+                    }
+                  }}
+                  disabled={searchingAddress}
+                />
+                <button 
+                  onClick={handleSearchAddress}
+                  disabled={searchingAddress}
+                  className="btn-search-address"
+                >
+                  {searchingAddress ? '🔄' : '🔍'} {searchingAddress ? 'Buscando...' : 'Buscar'}
+                </button>
+              </div>
+              
+              <div className="map-container">
+                <MapPicker
+                  initialLat={manualCoords.lat}
+                  initialLng={manualCoords.lng}
+                  onCoordsChange={(lat, lng) => setManualCoords({ lat, lng })}
+                />
+              </div>
+              
+              {/* Indicador de scroll para mobile */}
+              <div className="scroll-indicator-mobile">
+                <span>Desliza para ver más opciones</span>
+                <div className="scroll-arrow">▼</div>
+              </div>
+              
+              <div className="coords-display">
+                <span className="coord-label">📍 Coordenadas:</span>
+                <span className="coord-value">{manualCoords.lat.toFixed(6)}, {manualCoords.lng.toFixed(6)}</span>
+              </div>
+              
+              <div className="map-actions">
+                <button 
+                  className="btn-cancel-red"
+                  onClick={() => {
+                    const confirmed = window.confirm(
+                      '¿Estás seguro de cancelar?\n\n' +
+                      'Se perderán las coordenadas seleccionadas.'
+                    )
+                    if (confirmed) {
+                      setShowMapPicker(false)
+                      setManualCoords(null)
+                    }
+                  }}
+                  disabled={savingManualLocation}
+                >
+                  ✕ Cancelar
+                </button>
+                <button 
+                  className="btn-accept-green"
+                  onClick={() => {
+                    const confirmed = window.confirm(
+                      `📍 ¿Guardar esta ubicación?\n\n` +
+                      `Latitud: ${manualCoords?.lat.toFixed(6)}\n` +
+                      `Longitud: ${manualCoords?.lng.toFixed(6)}`
+                    )
+                    if (confirmed) {
+                      handleSaveManualLocation()
+                    }
+                  }}
+                  disabled={savingManualLocation}
+                >
+                  {savingManualLocation ? (
+                    <>
+                      <span className="saving-spinner"></span>
+                      Guardando...
+                    </>
+                  ) : (
+                    '✓ Aceptar'
+                  )}
+                </button>
+              </div>
+              
+              {/* Overlay de carga */}
+              {savingManualLocation && (
+                <div className="saving-overlay">
+                  <div className="saving-content">
+                    <div className="saving-spinner-large"></div>
+                    <p>Guardando ubicación...</p>
+                    <span>Por favor espera</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Modal de Opciones Nuevo PDV */}
       {showNuevoPdvModal && (
         <div className="modal-overlay" onClick={() => setShowNuevoPdvModal(false)}>
@@ -3580,6 +4115,15 @@ export default function Home() {
               >
                 📥 Reportes
               </button>
+              <button 
+                className={`sidebar-nav-btn ${adminSidebarTab === 'gps' ? 'active' : ''}`}
+                onClick={() => {
+                  setAdminSidebarTab('gps')
+                  loadGpsLogs()
+                }}
+              >
+                📍 Seguimiento GPS
+              </button>
             </nav>
             
             <div className="sidebar-content">
@@ -3727,9 +4271,113 @@ export default function Home() {
                   </div>
                 </div>
               )}
+              
+              {/* Pestaña Seguimiento GPS */}
+              {adminSidebarTab === 'gps' && (
+                <div className="sidebar-section">
+                  <h3>📍 Seguimiento GPS</h3>
+                  <p className="sidebar-description">Ver ubicaciones de usuarios móviles.</p>
+                  
+                  {loadingGpsLogs ? (
+                    <div className="sidebar-loading">Cargando logs GPS...</div>
+                  ) : (
+                    <>
+                      <div className="gps-user-select">
+                        <label>Seleccionar usuario:</label>
+                        <select 
+                          value={selectedGpsUser}
+                          onChange={(e) => {
+                            setSelectedGpsUser(e.target.value)
+                            loadGpsLogs(e.target.value || undefined)
+                          }}
+                        >
+                          <option value="">-- Todos los usuarios --</option>
+                          {gpsUsers.map((user, idx) => (
+                            <option key={idx} value={user}>{user}</option>
+                          ))}
+                        </select>
+                      </div>
+                      
+                      <div className="gps-stats">
+                        <div className="gps-stat">
+                          <span className="stat-number">{gpsLogs.length}</span>
+                          <span className="stat-label">Registros</span>
+                        </div>
+                        <div className="gps-stat">
+                          <span className="stat-number">{gpsUsers.length}</span>
+                          <span className="stat-label">Usuarios</span>
+                        </div>
+                      </div>
+                      
+                      <button 
+                        className="btn-view-map"
+                        onClick={() => setShowGpsModal(true)}
+                        disabled={gpsLogs.length === 0}
+                      >
+                        🗺️ Ver en Mapa
+                      </button>
+                      
+                      {gpsLogs.length > 0 && (
+                        <div className="gps-recent-list">
+                          <h4>Últimos registros:</h4>
+                          {gpsLogs.slice(0, 5).map((log, idx) => (
+                            <div key={idx} className="gps-log-item">
+                              <div className="log-email">{log.email}</div>
+                              <div className="log-details">
+                                <span>{log.fecha} {log.hora}</span>
+                                <span className="log-event">{log.evento}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
             </div>
           </aside>
         </>
+      )}
+
+      {/* Modal de Mapa GPS (Admin) */}
+      {showGpsModal && sheetData?.permissions?.isAdmin && (
+        <div className="modal-overlay" onClick={() => setShowGpsModal(false)}>
+          <div className="modal-content modal-gps-map" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>📍 Seguimiento GPS {selectedGpsUser && `- ${selectedGpsUser}`}</h2>
+              <button className="modal-close" onClick={() => setShowGpsModal(false)}>×</button>
+            </div>
+            <div className="modal-body gps-map-body">
+              <div className="gps-map-legend">
+                <div className="legend-item">
+                  <span className="legend-dot green"></span>
+                  <span>Primer punto (más antiguo)</span>
+                </div>
+                <div className="legend-item">
+                  <span className="legend-dot blue"></span>
+                  <span>Puntos intermedios</span>
+                </div>
+                <div className="legend-item">
+                  <span className="legend-dot red"></span>
+                  <span>Último punto (más reciente)</span>
+                </div>
+              </div>
+              
+              <div className="gps-map-container">
+                <GpsTrackingMap 
+                  logs={gpsLogs}
+                  selectedUser={selectedGpsUser}
+                />
+              </div>
+              
+              <div className="gps-map-info">
+                <span>Total de puntos: <strong>{gpsLogs.length}</strong></span>
+                {selectedGpsUser && <span>Usuario: <strong>{selectedGpsUser}</strong></span>}
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Admin Panel Modal */}
@@ -4459,9 +5107,9 @@ export default function Home() {
                             </button>
                             <button 
                               className="btn-location"
-                              onClick={() => handleSaveLocation(originalIndex)}
+                              onClick={() => handleLocationClick(originalIndex)}
                               disabled={savingLocationRow === originalIndex}
-                              title="Guardar ubicación GPS"
+                              title="Opciones de ubicación"
                             >
                               {savingLocationRow === originalIndex ? '⏳' : '📍'}
                             </button>
