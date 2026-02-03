@@ -427,6 +427,12 @@ export default function Home() {
       }
     }
     
+    // DEBUG - mostrar qué encuentra
+    console.log('=== DEBUG getAutoFillIndexes ===')
+    console.log('Headers:', headers.join(' | '))
+    console.log('Fecha index:', fechaIndex, fechaIndex !== -1 ? `"${headers[fechaIndex]}"` : 'NO ENCONTRADO')
+    console.log('Relevador index:', relevadorIndex, relevadorIndex !== -1 ? `"${headers[relevadorIndex]}"` : 'NO ENCONTRADO')
+    
     return { fechaIndex, relevadorIndex }
   }
 
@@ -1142,10 +1148,28 @@ export default function Home() {
     const headersLower = headersToUse.map(h => String(h).toLowerCase().trim())
     const results: { fieldName: string; data: { label: string; count: number; color: string }[] }[] = []
     
+    // DEBUG: Ver los headers disponibles
+    console.log('=== DEBUG STATS ===')
+    console.log('Hoja:', sheetName)
+    console.log('Headers:', headersLower.join(' | '))
+    console.log('Total filas de datos:', dataToAnalyze.length)
+    
     // Encontrar índice de "Relevado por:" (usando includes como en getAutoFillIndexes)
     const relevadorIndex = headersLower.findIndex(h => 
       h.includes('relevador') || h.includes('relevado por') || h.includes('censado por')
     )
+    
+    console.log('Índice relevador encontrado:', relevadorIndex)
+    if (relevadorIndex !== -1) {
+      console.log('Nombre del campo:', headersLower[relevadorIndex])
+      // Mostrar algunos valores de ejemplo (como strings)
+      const sampleValues = dataToAnalyze.slice(0, 10).map(row => `"${String(row[relevadorIndex] || '').trim()}"`).join(', ')
+      console.log('Valores de ejemplo (10 primeras filas):', sampleValues)
+      
+      // Contar cuántos tienen valor
+      const conValor = dataToAnalyze.filter(row => String(row[relevadorIndex] || '').trim() !== '').length
+      console.log('Filas con valor en relevador:', conValor)
+    }
     
     // Filtrar solo filas relevadas
     const relevadosData = dataToAnalyze.filter(row => {

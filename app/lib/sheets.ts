@@ -83,13 +83,27 @@ export async function getSheetIds(accessToken: string, sheetName: string): Promi
 }
 
 /**
- * Obtiene todos los datos de una hoja específica o de la hoja principal
+ * Obtiene todos los datos de una hoja específica o de la primera hoja disponible
  */
 export async function getAllData(accessToken: string, sheetName: string = '') {
   const sheets = getSheetsClient(accessToken)
   
-  // Si se especifica una hoja, usar esa; si no, usar la hoja principal
-  const range = sheetName ? `'${sheetName}'!A:AM` : `'${DEFAULT_SHEET_NAME}'!A:AM`
+  // Si se especifica una hoja, usar esa
+  let targetSheet = sheetName
+  
+  // Si no se especifica hoja, obtener la primera hoja disponible (no excluida)
+  if (!targetSheet) {
+    const availableSheets = await getAvailableSheets(accessToken)
+    if (availableSheets.length > 0) {
+      targetSheet = availableSheets[0]
+    } else {
+      // Fallback a la primera hoja del spreadsheet
+      targetSheet = await getFirstSheetName(accessToken)
+    }
+  }
+  
+  const range = `'${targetSheet}'!A:AM`
+  console.log('Cargando datos de hoja:', targetSheet)
   
   const response = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,

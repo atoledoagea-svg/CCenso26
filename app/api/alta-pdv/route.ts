@@ -168,15 +168,13 @@ export async function POST(request: NextRequest) {
       pdvData.observaciones || '',        // Observaciones
       pdvData.comentarios || '',          // Comentarios
       userInfo.email,                     // Relevado por
-      pdvData.imageUrl || '',             // IMG
-      pdvData.latitud || '',              // Latitud
-      pdvData.longitud || ''              // Longitud
+      pdvData.imageUrl || ''              // IMG
     ]
 
     // Agregar la fila
     await sheets.spreadsheets.values.append({
       spreadsheetId: SPREADSHEET_ID,
-      range: `'${ALTA_PDV_SHEET}'!A:AB`,
+      range: `'${ALTA_PDV_SHEET}'!A:Z`,
       valueInputOption: 'USER_ENTERED',
       insertDataOption: 'INSERT_ROWS',
       requestBody: {
@@ -247,14 +245,12 @@ async function createAltaPdvSheet(sheets: any) {
       'Observaciones',
       'Comentarios',
       'Relevado por',
-      'IMG',
-      'Latitud',
-      'Longitud'
+      'IMG'
     ]
 
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID,
-      range: `'${ALTA_PDV_SHEET}'!A1:AB1`,
+      range: `'${ALTA_PDV_SHEET}'!A1:Z1`,
       valueInputOption: 'RAW',
       requestBody: {
         values: [headers],
