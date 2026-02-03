@@ -4527,6 +4527,18 @@ body {
   font-style: italic;
 }
 
+.map-click-hint {
+  background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+  color: #1d4ed8;
+  font-size: 0.85rem;
+  text-align: center;
+  margin: 0.5rem 0;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  font-weight: 500;
+  border: 1px solid #93c5fd;
+}
+
 .map-container {
   position: relative;
   width: 100%;
@@ -4693,6 +4705,45 @@ body {
   border: 1px solid var(--gray-200);
 }
 
+/* Animaciones de búsqueda de dirección */
+.searching-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.92);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  border-radius: 12px;
+  animation: fadeIn 0.2s ease;
+}
+
+.searching-content {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+.searching-content p {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--gray-700);
+}
+
+.searching-spinner {
+  width: 50px;
+  height: 50px;
+  border: 4px solid var(--gray-200);
+  border-top: 4px solid #3b82f6;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
 /* Animaciones de guardado ubicación */
 .saving-overlay {
   position: absolute;
@@ -4828,6 +4879,62 @@ body {
   display: flex;
   gap: 1rem;
   justify-content: flex-end;
+}
+
+/* Botones fijos fuera del modal body */
+.map-actions-fixed {
+  display: flex;
+  gap: 1rem;
+  padding: 1rem 1.5rem;
+  background: white;
+  border-top: 1px solid var(--gray-200);
+  justify-content: stretch;
+}
+
+.map-actions-fixed .btn-cancel-red,
+.map-actions-fixed .btn-accept-green {
+  flex: 1;
+  padding: 1rem;
+  font-size: 1rem;
+  font-weight: 600;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.map-actions-fixed .btn-cancel-red {
+  background: white;
+  color: #dc2626;
+  border: 2px solid #dc2626;
+}
+
+.map-actions-fixed .btn-cancel-red:hover {
+  background: #fef2f2;
+}
+
+.map-actions-fixed .btn-cancel-red:active {
+  transform: scale(0.98);
+}
+
+.map-actions-fixed .btn-accept-green {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+  border: none;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+}
+
+.map-actions-fixed .btn-accept-green:hover {
+  box-shadow: 0 6px 16px rgba(16, 185, 129, 0.4);
+}
+
+.map-actions-fixed .btn-accept-green:active {
+  transform: scale(0.98);
+}
+
+.map-actions-fixed .btn-accept-green:disabled,
+.map-actions-fixed .btn-cancel-red:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .map-actions .btn-cancel {

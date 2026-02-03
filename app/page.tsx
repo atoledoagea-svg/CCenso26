@@ -128,6 +128,7 @@ export default function Home() {
   const [showMobileSearch, setShowMobileSearch] = useState(false)
   const [mobileSearchQuery, setMobileSearchQuery] = useState('')
   const [mobileSearchType, setMobileSearchType] = useState<'id' | 'paquete'>('id')
+  const [cameFromMobileSearch, setCameFromMobileSearch] = useState(false)
   const [showNuevoPdvForm, setShowNuevoPdvForm] = useState(false)
   const [savingNuevoPdv, setSavingNuevoPdv] = useState(false)
   const [nuevoPdvData, setNuevoPdvData] = useState({
@@ -561,6 +562,12 @@ export default function Home() {
       setUploadedImageUrl(null)
       setCapturedLatitude(null)
       setCapturedLongitude(null)
+      
+      // Si vino de la búsqueda mobile, volver a ella
+      if (cameFromMobileSearch) {
+        setShowMobileSearch(true)
+        setCameFromMobileSearch(false)
+      }
     }
   }
 
@@ -945,40 +952,19 @@ export default function Home() {
   const handleSaveCurrentLocation = async () => {
     if (locationModalRow === null) return
     
-    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
     const rowToSave = locationModalRow
     
-    // En mobile, verificar si hay ubicación cacheada reciente
-    if (isMobile && cachedMobileLocation.current) {
-      const cacheAge = Date.now() - cachedMobileLocation.current.timestamp
-      if (cacheAge < LOCATION_CACHE_DURATION) {
-        // Usar ubicación cacheada - confirmación rápida
-        const confirmed = window.confirm(
-          '📍 ¿Guardar tu ubicación actual?\n\n' +
-          'Se usará la ubicación detectada al ingresar a la app.'
-        )
-        if (!confirmed) return
-        
-        // Guardar directamente con la ubicación cacheada
-        await handleSaveLocation(rowToSave, 'manual', {
-          lat: cachedMobileLocation.current.latitude,
-          lng: cachedMobileLocation.current.longitude
-        })
-        setLocationModalRow(null)
-        return
-      }
-    }
-    
-    // Sin cache o cache expirado - pedir GPS
+    // Siempre pedir GPS fresco (ubicación actual, no la del cache)
     const confirmed = window.confirm(
       '📍 ¿Guardar tu ubicación actual?\n\n' +
-      'Se obtendrán las coordenadas GPS de tu dispositivo y se guardarán en este registro.'
+      'Se obtendrán las coordenadas GPS de tu dispositivo en este momento.'
     )
     if (!confirmed) return
     
     // No cerrar el modal hasta que termine - mostrar animación
     await handleSaveLocation(rowToSave, 'gps')
     setLocationModalRow(null)
+    setCameFromMobileSearch(false) // No volver a búsqueda después de guardar
   }
 
   // Función para buscar dirección y obtener coordenadas
@@ -990,28 +976,22 @@ export default function Home() {
 
     setSearchingAddress(true)
     try {
-      // Agregar ", Argentina" para mejorar resultados
-      const searchQuery = addressSearch.includes('Argentina') 
-        ? addressSearch 
-        : `${addressSearch}, Buenos Aires, Argentina`
-      
+      // Usar API local para evitar problemas de CORS en mobile
       const response = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=1`,
-        {
-          headers: {
-            'Accept-Language': 'es'
-          }
-        }
+        `/api/geocode?q=${encodeURIComponent(addressSearch)}`
       )
 
       if (!response.ok) {
-        throw new Error('Error en la búsqueda')
+        const errorData = await response.json().catch(() => ({}))
+        console.error('Geocode API error:', response.status, errorData)
+        throw new Error(errorData.error || 'Error en la búsqueda')
       }
 
-      const results = await response.json()
+      const data = await response.json()
+      const results = data.results
       
-      if (results.length === 0) {
-        alert('📍 No se encontró la dirección.\n\nIntenta con otro formato:\n- "Santa Fe 300, CABA"\n- "Av. Corrientes 1234"\n- "Calle 50 entre 7 y 8, La Plata"')
+      if (!results || results.length === 0) {
+        alert('📍 No se encontró la dirección.\n\nIntenta con otro formato:\n- "Santa Fe 300, Palermo"\n- "Av. Corrientes 1234"\n- "Florida y Lavalle"')
         return
       }
 
@@ -1078,6 +1058,7 @@ export default function Home() {
       setShowMapPicker(false)
       setLocationModalRow(null)
       setManualCoords(null)
+      setCameFromMobileSearch(false) // No volver a búsqueda después de guardar
     } finally {
       setSavingManualLocation(false)
     }
@@ -1317,6 +1298,8 @@ export default function Home() {
       setUploadedImageUrl(null)
       setCapturedLatitude(null)
       setCapturedLongitude(null)
+      // Resetear flag de búsqueda (no volver a la búsqueda después de guardar)
+      setCameFromMobileSearch(false)
     } catch (err: any) {
       alert('Error: ' + err.message)
     } finally {
@@ -3489,11 +3472,25 @@ export default function Home() {
 
       {/* Modal de Opciones de Ubicación */}
       {locationModalRow !== null && !showMapPicker && (
-        <div className="modal-overlay" onClick={() => setLocationModalRow(null)}>
+        <div className="modal-overlay" onClick={() => {
+          setLocationModalRow(null)
+          // Si vino de búsqueda mobile, volver a ella
+          if (cameFromMobileSearch) {
+            setShowMobileSearch(true)
+            setCameFromMobileSearch(false)
+          }
+        }}>
           <div className="modal-content modal-small location-options" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <h2>📍 Opciones de Ubicación</h2>
-              <button className="modal-close" onClick={() => setLocationModalRow(null)}>×</button>
+              <button className="modal-close" onClick={() => {
+                setLocationModalRow(null)
+                // Si vino de búsqueda mobile, volver a ella
+                if (cameFromMobileSearch) {
+                  setShowMobileSearch(true)
+                  setCameFromMobileSearch(false)
+                }
+              }}>×</button>
             </div>
             <div className="modal-body">
               <p className="location-description">¿Cómo deseas agregar la ubicación?</p>
@@ -3575,7 +3572,7 @@ export default function Home() {
               <div className="address-search">
                 <input
                   type="text"
-                  placeholder="Ej: Santa Fe 300, CABA"
+                  placeholder="Ej: Santa Fe 300, Palermo"
                   value={addressSearch}
                   onChange={(e) => setAddressSearch(e.target.value)}
                   onKeyDown={(e) => {
@@ -3603,60 +3600,24 @@ export default function Home() {
                 />
               </div>
               
-              {/* Indicador de scroll para mobile */}
-              <div className="scroll-indicator-mobile">
-                <span>Desliza para ver más opciones</span>
-                <div className="scroll-arrow">▼</div>
-              </div>
+              <p className="map-click-hint">👆 Haz clic en el mapa para establecer la ubicación exacta</p>
               
               <div className="coords-display">
                 <span className="coord-label">📍 Coordenadas:</span>
                 <span className="coord-value">{manualCoords.lat.toFixed(6)}, {manualCoords.lng.toFixed(6)}</span>
               </div>
               
-              <div className="map-actions">
-                <button 
-                  className="btn-cancel-red"
-                  onClick={() => {
-                    const confirmed = window.confirm(
-                      '¿Estás seguro de cancelar?\n\n' +
-                      'Se perderán las coordenadas seleccionadas.'
-                    )
-                    if (confirmed) {
-                      setShowMapPicker(false)
-                      setManualCoords(null)
-                    }
-                  }}
-                  disabled={savingManualLocation}
-                >
-                  ✕ Cancelar
-                </button>
-                <button 
-                  className="btn-accept-green"
-                  onClick={() => {
-                    const confirmed = window.confirm(
-                      `📍 ¿Guardar esta ubicación?\n\n` +
-                      `Latitud: ${manualCoords?.lat.toFixed(6)}\n` +
-                      `Longitud: ${manualCoords?.lng.toFixed(6)}`
-                    )
-                    if (confirmed) {
-                      handleSaveManualLocation()
-                    }
-                  }}
-                  disabled={savingManualLocation}
-                >
-                  {savingManualLocation ? (
-                    <>
-                      <span className="saving-spinner"></span>
-                      Guardando...
-                    </>
-                  ) : (
-                    '✓ Aceptar'
-                  )}
-                </button>
-              </div>
+              {/* Overlay de carga para búsqueda de dirección */}
+              {searchingAddress && (
+                <div className="searching-overlay">
+                  <div className="searching-content">
+                    <div className="searching-spinner"></div>
+                    <p>Buscando dirección...</p>
+                  </div>
+                </div>
+              )}
               
-              {/* Overlay de carga */}
+              {/* Overlay de carga para guardar */}
               {savingManualLocation && (
                 <div className="saving-overlay">
                   <div className="saving-content">
@@ -3666,6 +3627,49 @@ export default function Home() {
                   </div>
                 </div>
               )}
+            </div>
+            
+            {/* Botones fuera del modal body - siempre visibles */}
+            <div className="map-actions-fixed">
+              <button 
+                className="btn-cancel-red"
+                onClick={() => {
+                  const confirmed = window.confirm(
+                    '¿Estás seguro de cancelar?\n\n' +
+                    'Se perderán las coordenadas seleccionadas.'
+                  )
+                  if (confirmed) {
+                    setShowMapPicker(false)
+                    setManualCoords(null)
+                  }
+                }}
+                disabled={savingManualLocation}
+              >
+                ✕ Cancelar
+              </button>
+              <button 
+                className="btn-accept-green"
+                onClick={() => {
+                  const confirmed = window.confirm(
+                    `📍 ¿Guardar esta ubicación?\n\n` +
+                    `Latitud: ${manualCoords?.lat.toFixed(6)}\n` +
+                    `Longitud: ${manualCoords?.lng.toFixed(6)}`
+                  )
+                  if (confirmed) {
+                    handleSaveManualLocation()
+                  }
+                }}
+                disabled={savingManualLocation}
+              >
+                {savingManualLocation ? (
+                  <>
+                    <span className="saving-spinner"></span>
+                    Guardando...
+                  </>
+                ) : (
+                  '✓ Aceptar'
+                )}
+              </button>
             </div>
           </div>
         </div>
@@ -5471,6 +5475,7 @@ export default function Home() {
                         className="result-action-btn edit"
                         onClick={() => {
                           setShowMobileSearch(false)
+                          setCameFromMobileSearch(true)
                           handleEditRow(originalIndex)
                         }}
                         title="Editar"
@@ -5481,6 +5486,7 @@ export default function Home() {
                         className="result-action-btn location"
                         onClick={() => {
                           setShowMobileSearch(false)
+                          setCameFromMobileSearch(true)
                           handleLocationClick(originalIndex)
                         }}
                         title="Ubicación"
