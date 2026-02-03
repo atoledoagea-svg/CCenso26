@@ -353,6 +353,10 @@ export default function Home() {
   // Referencia para controlar el último envío de GPS (evitar spam)
   const lastGpsLogTime = useRef<number>(0)
   const GPS_LOG_COOLDOWN = 5 * 60 * 1000 // 5 minutos entre logs
+  
+  // Cache de ubicación para mobile (evitar pedir GPS múltiples veces)
+  const cachedMobileLocation = useRef<{ latitude: number; longitude: number; timestamp: number } | null>(null)
+  const LOCATION_CACHE_DURATION = 10 * 60 * 1000 // 10 minutos de validez del cache
 
   // Función para enviar log de GPS al servidor
   const sendGpsLog = useCallback(async (token: string, reason: string = 'login') => {
@@ -398,6 +402,13 @@ export default function Home() {
             if (response.ok) {
               console.log(`GPS Log: Ubicación guardada (${reason})`)
               lastGpsLogTime.current = Date.now()
+              // Guardar ubicación en cache para reutilizar
+              cachedMobileLocation.current = {
+                latitude: position.coords.latitude,
+                longitude: position.coords.longitude,
+                timestamp: Date.now()
+              }
+              console.log('GPS Log: Ubicación cacheada para reutilizar')
             }
           } catch (error) {
             console.error('GPS Log: Error enviando datos', error)
@@ -922,14 +933,37 @@ export default function Home() {
   const handleSaveCurrentLocation = async () => {
     if (locationModalRow === null) return
     
-    // Confirmación para evitar clics accidentales
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+    const rowToSave = locationModalRow
+    
+    // En mobile, verificar si hay ubicación cacheada reciente
+    if (isMobile && cachedMobileLocation.current) {
+      const cacheAge = Date.now() - cachedMobileLocation.current.timestamp
+      if (cacheAge < LOCATION_CACHE_DURATION) {
+        // Usar ubicación cacheada - confirmación rápida
+        const confirmed = window.confirm(
+          '📍 ¿Guardar tu ubicación actual?\n\n' +
+          'Se usará la ubicación detectada al ingresar a la app.'
+        )
+        if (!confirmed) return
+        
+        // Guardar directamente con la ubicación cacheada
+        await handleSaveLocation(rowToSave, 'manual', {
+          lat: cachedMobileLocation.current.latitude,
+          lng: cachedMobileLocation.current.longitude
+        })
+        setLocationModalRow(null)
+        return
+      }
+    }
+    
+    // Sin cache o cache expirado - pedir GPS
     const confirmed = window.confirm(
       '📍 ¿Guardar tu ubicación actual?\n\n' +
       'Se obtendrán las coordenadas GPS de tu dispositivo y se guardarán en este registro.'
     )
     if (!confirmed) return
     
-    const rowToSave = locationModalRow
     // No cerrar el modal hasta que termine - mostrar animación
     await handleSaveLocation(rowToSave, 'gps')
     setLocationModalRow(null)
