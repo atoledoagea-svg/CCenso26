@@ -76,17 +76,19 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Preparar datos del log
+    // Preparar datos del log (zona horaria Argentina)
     const now = new Date()
     const fecha = now.toLocaleDateString('es-AR', { 
       day: '2-digit', 
       month: '2-digit', 
-      year: 'numeric' 
+      year: 'numeric',
+      timeZone: 'America/Argentina/Buenos_Aires'
     })
     const hora = now.toLocaleTimeString('es-AR', { 
       hour: '2-digit', 
       minute: '2-digit', 
-      second: '2-digit' 
+      second: '2-digit',
+      timeZone: 'America/Argentina/Buenos_Aires'
     })
     
     const dispositivo = isMobile ? 'Mobile' : 'Desktop'
