@@ -1122,6 +1122,13 @@ export default function Home() {
       }
       valuesToSave[latIndex] = latitude.toFixed(6)
       valuesToSave[lngIndex] = longitude.toFixed(6)
+      
+      // Guardar dispositivo usado
+      const dispositivoIndex = headers.findIndex(h => h === 'dispositivo')
+      if (dispositivoIndex !== -1) {
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+        valuesToSave[dispositivoIndex] = isMobile ? 'Mobile' : 'PC'
+      }
 
       const response = await fetch('/api/update', {
         method: 'POST',
@@ -1239,6 +1246,13 @@ export default function Home() {
       // Set user email in relevador field
       if (relevadorIndex !== -1) {
         valuesToSave[relevadorIndex] = userEmail
+      }
+      
+      // Detectar y guardar dispositivo
+      const dispositivoIndex = headers.findIndex(h => h === 'dispositivo')
+      if (dispositivoIndex !== -1) {
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+        valuesToSave[dispositivoIndex] = isMobile ? 'Mobile' : 'PC'
       }
       
       // Agregar coordenadas GPS si fueron capturadas
@@ -2609,6 +2623,10 @@ export default function Home() {
                     // Ocultar campo comentario de foto
                     const isComentarioFotoField = headerLower.includes('comentario') && headerLower.includes('foto')
                     if (isComentarioFotoField) return null
+                    
+                    // Ocultar campo DISPOSITIVO (se guarda automáticamente)
+                    const isDispositivoField = headerLower === 'dispositivo'
+                    if (isDispositivoField) return null
                     
                     const isEstadoKioscoField = headerLower.includes('estado') && headerLower.includes('kiosco')
                     
@@ -5114,9 +5132,11 @@ export default function Home() {
                 <thead>
                   <tr>
                     <th className="actions-col">Acciones</th>
-                    {sheetData.headers.map((header, idx) => (
-                      <th key={idx}>{header}</th>
-                    ))}
+                    {sheetData.headers.map((header, idx) => {
+                      // Ocultar columna DISPOSITIVO en la tabla
+                      if (header.toLowerCase().trim() === 'dispositivo') return null
+                      return <th key={idx}>{header}</th>
+                    })}
                   </tr>
                 </thead>
                 <tbody>
@@ -5149,9 +5169,11 @@ export default function Home() {
                             </button>
                           </div>
                         </td>
-                        {row.map((cell, cellIdx) => (
-                          <td key={cellIdx}>{String(cell || '')}</td>
-                        ))}
+                        {row.map((cell, cellIdx) => {
+                          // Ocultar columna DISPOSITIVO en la tabla
+                          if (sheetData.headers[cellIdx]?.toLowerCase().trim() === 'dispositivo') return null
+                          return <td key={cellIdx}>{String(cell || '')}</td>
+                        })}
                       </tr>
                     )
                   })}
