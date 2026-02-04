@@ -50,9 +50,24 @@ export default function Home() {
   const [userEmail, setUserEmail] = useState<string | null>(null)
   const [accessToken, setAccessToken] = useState<string | null>(null)
   
+  // Tips de uso para mostrar durante la carga
+  const loadingTips = [
+    "Puedes usar el botón 📍 para guardar la ubicación del PDV rápidamente.",
+    "El botón de Clarín en la barra inferior recarga los datos y te lleva al inicio.",
+    "Desde 'Ayuda' puedes contactar soporte por WhatsApp.",
+    "Puedes buscar PDVs por ID o por nombre de paquete.",
+    "Al tomar una foto con la cámara, se guardan automáticamente las coordenadas GPS.",
+    "Usa 'Agregar localización' para marcar manualmente la ubicación en el mapa.",
+    "Los campos con * son obligatorios y no pueden quedar vacíos.",
+    "Puedes descargar el cuestionario en PDF desde el botón 'Ayuda'.",
+    "El progreso de relevamiento se muestra en las estadísticas.",
+    "Recuerda guardar los cambios antes de cerrar el formulario de edición."
+  ]
+  
   // Dashboard states
   const [sheetData, setSheetData] = useState<SheetData | null>(null)
   const [loadingData, setLoadingData] = useState(false)
+  const [currentTip, setCurrentTip] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [editingRow, setEditingRow] = useState<number | null>(null)
   const [editedValues, setEditedValues] = useState<any[]>([])
@@ -2442,6 +2457,14 @@ export default function Home() {
     setCurrentPage(1)
   }, [searchTerm, searchType, filterRelevado])
 
+  // Efecto para mostrar un tip aleatorio durante la carga
+  useEffect(() => {
+    if (loadingData) {
+      const randomTip = loadingTips[Math.floor(Math.random() * loadingTips.length)]
+      setCurrentTip(randomTip)
+    }
+  }, [loadingData])
+
   const getPageNumbers = () => {
     const pages: (number | string)[] = []
     
@@ -3675,12 +3698,12 @@ export default function Home() {
         </div>
       )}
 
-      {/* Modal de Opciones Nuevo PDV */}
+      {/* Modal de Opciones Ayuda / Soporte */}
       {showNuevoPdvModal && (
         <div className="modal-overlay" onClick={() => setShowNuevoPdvModal(false)}>
           <div className="modal-content modal-small nuevo-pdv-options" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
-              <h2>➕ Nuevo PDV</h2>
+              <h2>⚠️ Ayuda / Soporte</h2>
               <button className="modal-close" onClick={() => setShowNuevoPdvModal(false)}>×</button>
             </div>
             <div className="modal-body">
@@ -3713,6 +3736,18 @@ export default function Home() {
                   <span className="option-title">CUESTIONARIO PDF</span>
                   <span className="option-desc">Descargar formulario para llenar a mano</span>
                 </button>
+                {/* Opción Soporte WhatsApp - Visible para todos */}
+                <a 
+                  href="https://api.whatsapp.com/send/?phone=541165903360&text&type=phone_number&app_absent=0"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="nuevo-pdv-option-btn option-whatsapp"
+                  onClick={() => setShowNuevoPdvModal(false)}
+                >
+                  <span className="option-icon">💬</span>
+                  <span className="option-title">SOPORTE WHATSAPP</span>
+                  <span className="option-desc">Contactar soporte técnico por WhatsApp</span>
+                </a>
               </div>
             </div>
           </div>
@@ -5152,6 +5187,14 @@ export default function Home() {
           <div className="loading-container">
             <div className="spinner-large"></div>
             <p>Cargando datos...</p>
+            {currentTip && (
+              <div className="loading-tip">
+                <span className="tip-icon">💡</span>
+                <span className="tip-text">
+                  <strong>¿Sabías que?</strong> {currentTip}
+                </span>
+              </div>
+            )}
           </div>
         )}
 
@@ -5282,15 +5325,11 @@ export default function Home() {
       {isAuthorized && (
         <nav className="mobile-bottom-nav">
           <button 
-            className={`mobile-nav-item ${!showAdminSidebar && !editingRow && locationModalRow === null ? 'active' : ''}`}
-            onClick={() => {
-              setShowAdminSidebar(false)
-              setEditingRow(null)
-              setLocationModalRow(null)
-            }}
+            className="mobile-nav-item"
+            onClick={() => setShowNuevoPdvModal(true)}
           >
-            <span className="nav-icon">🏠</span>
-            <span className="nav-label">Inicio</span>
+            <span className="nav-icon">⚠️</span>
+            <span className="nav-label">Ayuda</span>
           </button>
           
           <button 
@@ -5305,10 +5344,40 @@ export default function Home() {
           </button>
           
           <button 
-            className="mobile-nav-item nav-center"
-            onClick={() => setShowNuevoPdvModal(true)}
+            className={`mobile-nav-item nav-center ${!showAdminSidebar && !editingRow && locationModalRow === null ? 'active' : ''}`}
+            onClick={() => {
+              // Si hay edición, ubicación abierta, o formulario de nuevo PDV, pedir confirmación
+              if (editingRow !== null || locationModalRow !== null || showMapPicker || showNuevoPdvForm) {
+                const confirmed = window.confirm(
+                  '⚠️ Tienes cambios sin guardar.\n\n¿Deseas volver al inicio? Los cambios no guardados se perderán.'
+                )
+                if (!confirmed) return
+              }
+              
+              setShowAdminSidebar(false)
+              setEditingRow(null)
+              setEditedValues([])
+              setLocationModalRow(null)
+              setShowMapPicker(false)
+              setManualCoords(null)
+              setShowMobileSearch(false)
+              setShowMobileStats(false)
+              setShowNuevoPdvModal(false)
+              setShowNuevoPdvForm(false)
+              resetNuevoPdvForm()
+              // Recargar datos
+              if (accessToken && !loadingData) {
+                loadSheetData(accessToken, adminSelectedSheet || '')
+              }
+            }}
           >
-            <span className="nav-icon">＋</span>
+            <Image 
+              src="/Clarinpng.png" 
+              alt="Inicio" 
+              width={55} 
+              height={55}
+              className="nav-center-logo"
+            />
           </button>
           
           {sheetData?.permissions?.isAdmin ? (

@@ -1,8 +1,8 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
 
 :root {
   --clarin-red: #E31E24;
@@ -325,11 +325,78 @@ body {
 @media (max-width: 900px) {
   .login-container {
     flex-direction: column;
+    background: linear-gradient(135deg, var(--clarin-red) 0%, var(--clarin-red-dark) 50%, #8B1015 100%);
+    position: relative;
+    overflow: hidden;
+  }
+  
+  /* Efecto de brillo igual que login-left */
+  .login-container::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 50%);
+    animation: pulse 15s ease-in-out infinite;
+    pointer-events: none;
   }
   
   .login-left {
-    min-height: 45vh;
+    min-height: auto;
+    padding: 3rem 2rem 1rem;
+    flex: none;
+    background: transparent;
+  }
+  
+  .login-left::before,
+  .login-left::after {
+    display: none;
+  }
+  
+  .login-right {
+    background: transparent;
+    padding: 1rem 2rem 2rem;
+    flex: none;
+    z-index: 1;
+  }
+  
+  .login-card {
+    max-width: 100%;
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    border-radius: 20px;
     padding: 2rem;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+  }
+  
+  .login-card h3 {
+    color: white;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  }
+  
+  .login-card p {
+    color: rgba(255, 255, 255, 0.9);
+  }
+  
+  .google-btn {
+    background: white;
+    border-color: white;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  }
+  
+  .google-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 25px rgba(0, 0, 0, 0.35);
+  }
+  
+  .footer-text {
+    color: rgba(255, 255, 255, 0.7);
+    position: relative;
+    bottom: auto;
+    margin-top: 2rem;
+    z-index: 1;
   }
   
   .welcome-content h1 {
@@ -340,19 +407,9 @@ body {
     font-size: 2.25rem;
   }
   
-  .login-right {
-    padding: 2.5rem;
-    flex: none;
-  }
-  
-  .login-card {
-    max-width: 100%;
-  }
-  
-  .footer-text {
-    position: relative;
-    bottom: auto;
-    margin-top: 2rem;
+  /* Las nubes se mantienen visibles */
+  .clouds-decoration {
+    z-index: 0;
   }
 }
 
@@ -853,8 +910,52 @@ body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 4rem;
+  padding: 4rem 2rem;
   color: var(--gray-600);
+  min-height: 60vh;
+  width: 100%;
+  gap: 1rem;
+}
+
+.loading-tip {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  max-width: 400px;
+  margin-top: 1.5rem;
+  padding: 1rem 1.25rem;
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+  border-radius: 12px;
+  border-left: 4px solid #f59e0b;
+  animation: fadeInTip 0.5s ease-out;
+}
+
+@keyframes fadeInTip {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.loading-tip .tip-icon {
+  font-size: 1.25rem;
+  flex-shrink: 0;
+}
+
+.loading-tip .tip-text {
+  font-size: 0.9rem;
+  color: #92400e;
+  line-height: 1.5;
+}
+
+.loading-tip .tip-text strong {
+  color: #78350f;
+  display: block;
+  margin-bottom: 0.25rem;
 }
 
 .spinner-large {
@@ -3216,13 +3317,16 @@ body {
 
 /* Mobile phones */
 @media (max-width: 640px) {
-  /* Login page mobile */
-  .login-container {
-    flex-direction: column;
+  /* Login page mobile - Estilo unificado */
+  .login-left {
+    padding: 2.5rem 1.5rem 1rem;
   }
   
-  .login-left {
-    min-height: 35vh;
+  .login-right {
+    padding: 0.5rem 1.5rem 2rem;
+  }
+  
+  .login-card {
     padding: 1.5rem;
   }
   
@@ -3259,12 +3363,6 @@ body {
   .cloud-2 { width: 100px; height: 30px; }
   .cloud-3 { width: 120px; height: 35px; }
   
-  .login-right {
-    padding: 2rem 1.5rem;
-    min-height: auto;
-    flex: none;
-  }
-  
   .login-card h3 {
     font-size: 1.5rem;
   }
@@ -3277,12 +3375,6 @@ body {
   .google-btn {
     padding: 14px 20px;
     font-size: 0.95rem;
-  }
-  
-  .footer-text {
-    position: relative;
-    bottom: auto;
-    margin-top: 2rem;
   }
   
   /* Dashboard mobile */
@@ -3758,8 +3850,7 @@ body {
 /* Very small phones */
 @media (max-width: 380px) {
   .login-left {
-    min-height: 30vh;
-    padding: 1rem;
+    padding: 2rem 1rem 0.5rem;
   }
   
   .welcome-content h1 {
@@ -3771,7 +3862,11 @@ body {
   }
   
   .login-right {
-    padding: 1.5rem 1rem;
+    padding: 0.5rem 1rem 1.5rem;
+  }
+  
+  .login-card {
+    padding: 1.25rem;
   }
   
   .dashboard-main {
@@ -3875,6 +3970,47 @@ body {
   .login-left {
     min-height: 100vh;
     padding: 1rem;
+    flex: 1;
+    background: linear-gradient(135deg, var(--clarin-red) 0%, var(--clarin-red-dark) 50%, #8B1015 100%);
+  }
+  
+  .login-left::before,
+  .login-left::after {
+    display: block;
+  }
+  
+  .login-container::before {
+    display: none;
+  }
+  
+  .login-right {
+    background: var(--white);
+    flex: 1;
+  }
+  
+  .login-card {
+    background: transparent;
+    backdrop-filter: none;
+    border: none;
+    padding: 1rem;
+  }
+  
+  .login-card h3 {
+    color: var(--gray-800);
+  }
+  
+  .login-card p {
+    color: var(--gray-600);
+  }
+  
+  .google-btn {
+    background: var(--white);
+    border-color: var(--gray-200);
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+  }
+  
+  .footer-text {
+    color: var(--gray-400);
   }
   
   .welcome-content h1,
@@ -4310,6 +4446,17 @@ body {
 .nuevo-pdv-option-btn.option-cuestionario:hover {
   background: #eef2ff;
   border-color: #4F46E5;
+}
+
+.nuevo-pdv-option-btn.option-whatsapp {
+  border-color: #25D366;
+  text-decoration: none;
+  color: inherit;
+}
+
+.nuevo-pdv-option-btn.option-whatsapp:hover {
+  background: #dcfce7;
+  border-color: #22c55e;
 }
 
 .nuevo-pdv-option-btn .option-icon {
@@ -5443,48 +5590,33 @@ body {
   font-weight: 500;
 }
 
-/* Botón de recargar mobile - MUY VISIBLE */
+/* Botón de recargar mobile - Estilo minimalista */
 .mobile-reload-btn {
   display: none;
   position: fixed;
-  top: 12px;
-  right: 12px;
-  width: 50px;
-  height: 50px;
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-  border: 3px solid white;
-  border-radius: 50%;
-  box-shadow: 0 4px 15px rgba(16, 185, 129, 0.5);
-  font-size: 1.5rem;
+  top: 10px;
+  right: 10px;
+  width: 40px;
+  height: 40px;
+  background: transparent;
+  border: none;
+  border-radius: 10px;
+  box-shadow: none;
+  font-size: 1.3rem;
   cursor: pointer;
   z-index: 101;
-  transition: all 0.2s;
-  animation: pulse-reload 2s ease-in-out infinite;
-}
-
-@keyframes pulse-reload {
-  0%, 100% { 
-    box-shadow: 0 4px 15px rgba(16, 185, 129, 0.5);
-  }
-  50% { 
-    box-shadow: 0 4px 25px rgba(16, 185, 129, 0.8);
-  }
+  transition: all 0.2s ease;
+  color: var(--gray-500);
 }
 
 .mobile-reload-btn:active {
-  transform: scale(0.9);
-  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+  transform: scale(0.85);
+  color: var(--clarin-red);
 }
 
 .mobile-reload-btn.loading {
-  animation: spin 1s linear infinite;
-  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
-  box-shadow: 0 4px 15px rgba(245, 158, 11, 0.5);
-}
-
-@keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  opacity: 0;
+  pointer-events: none;
 }
 
 @media (max-width: 768px) {
@@ -5540,17 +5672,16 @@ body {
   background: linear-gradient(135deg, var(--clarin-red) 0%, #c41e3a 100%);
   color: white;
   border-radius: 50%;
-  width: 56px;
-  height: 56px;
-  margin-top: -20px;
-  box-shadow: 0 4px 12px rgba(226, 6, 19, 0.4);
+  width: 60px;
+  height: 60px;
+  margin-top: -25px;
   padding: 0;
   min-width: unset;
+  border: 3px solid white;
 }
 
 .mobile-nav-item.nav-center:active {
   transform: scale(0.92);
-  box-shadow: 0 2px 8px rgba(226, 6, 19, 0.3);
 }
 
 .mobile-nav-item.nav-center .nav-icon {
@@ -5560,6 +5691,13 @@ body {
 
 .mobile-nav-item.nav-center .nav-label {
   display: none;
+}
+
+.mobile-nav-item.nav-center .nav-center-logo {
+  width: 55px !important;
+  height: 55px !important;
+  object-fit: contain;
+  filter: brightness(0) invert(1); /* Hace la imagen blanca */
 }
 
 /* Badge de notificación */
