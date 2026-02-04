@@ -5326,7 +5326,17 @@ export default function Home() {
         <nav className="mobile-bottom-nav">
           <button 
             className="mobile-nav-item"
-            onClick={() => setShowNuevoPdvModal(true)}
+            onClick={() => {
+              // Si hay búsqueda con texto, preguntar confirmación
+              if (showMobileSearch && mobileSearchQuery.trim()) {
+                const confirmed = window.confirm('¿Deseas salir de la búsqueda? Se perderá el texto ingresado.')
+                if (!confirmed) return
+              }
+              setShowMobileSearch(false)
+              setShowMobileStats(false)
+              setShowAdminSidebar(false)
+              setShowNuevoPdvModal(true)
+            }}
           >
             <span className="nav-icon">⚠️</span>
             <span className="nav-label">Ayuda</span>
@@ -5337,6 +5347,9 @@ export default function Home() {
             onClick={() => {
               setShowMobileSearch(true)
               setMobileSearchQuery('')
+              setShowMobileStats(false)
+              setShowAdminSidebar(false)
+              setShowNuevoPdvModal(false)
             }}
           >
             <span className="nav-icon">🔍</span>
@@ -5353,6 +5366,11 @@ export default function Home() {
                 )
                 if (!confirmed) return
               }
+              // Si hay búsqueda con texto, preguntar confirmación
+              if (showMobileSearch && mobileSearchQuery.trim()) {
+                const confirmed = window.confirm('¿Deseas salir de la búsqueda? Se perderá el texto ingresado.')
+                if (!confirmed) return
+              }
               
               setShowAdminSidebar(false)
               setEditingRow(null)
@@ -5361,6 +5379,7 @@ export default function Home() {
               setShowMapPicker(false)
               setManualCoords(null)
               setShowMobileSearch(false)
+              setMobileSearchQuery('')
               setShowMobileStats(false)
               setShowNuevoPdvModal(false)
               setShowNuevoPdvForm(false)
@@ -5383,7 +5402,18 @@ export default function Home() {
           {sheetData?.permissions?.isAdmin ? (
             <button 
               className={`mobile-nav-item ${showAdminSidebar ? 'active' : ''}`}
-              onClick={() => setShowAdminSidebar(!showAdminSidebar)}
+              onClick={() => {
+                // Si hay búsqueda con texto, preguntar confirmación
+                if (showMobileSearch && mobileSearchQuery.trim()) {
+                  const confirmed = window.confirm('¿Deseas salir de la búsqueda? Se perderá el texto ingresado.')
+                  if (!confirmed) return
+                }
+                setShowMobileSearch(false)
+                setShowMobileStats(false)
+                setShowNuevoPdvModal(false)
+                setShowAdminSidebar(!showAdminSidebar)
+                if (!showAdminSidebar) loadAllSheetsStats()
+              }}
             >
               <span className="nav-icon">⚙️</span>
               <span className="nav-label">Admin</span>
@@ -5391,7 +5421,17 @@ export default function Home() {
           ) : (
             <button 
               className={`mobile-nav-item ${showMobileStats ? 'active' : ''}`}
-              onClick={() => setShowMobileStats(!showMobileStats)}
+              onClick={() => {
+                // Si hay búsqueda con texto, preguntar confirmación
+                if (showMobileSearch && mobileSearchQuery.trim()) {
+                  const confirmed = window.confirm('¿Deseas salir de la búsqueda? Se perderá el texto ingresado.')
+                  if (!confirmed) return
+                }
+                setShowMobileSearch(false)
+                setShowAdminSidebar(false)
+                setShowNuevoPdvModal(false)
+                setShowMobileStats(!showMobileStats)
+              }}
             >
               <span className="nav-icon">📊</span>
               <span className="nav-label">Stats</span>
