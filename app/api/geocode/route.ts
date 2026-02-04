@@ -20,8 +20,8 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Agregar CABA/Buenos Aires para limitar resultados
-    const searchQuery = `${query}, CABA, Buenos Aires, Argentina`
+    // Agregar Buenos Aires para limitar resultados a AMBA (CABA + Gran Buenos Aires)
+    const searchQuery = `${query}, Buenos Aires, Argentina`
     
     const response = await fetch(
       `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=1&countrycodes=ar`,
