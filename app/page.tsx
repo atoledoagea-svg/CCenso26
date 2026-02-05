@@ -957,6 +957,7 @@ export default function Home() {
   const [savingManualLocation, setSavingManualLocation] = useState(false)
   const [addressSearch, setAddressSearch] = useState('')
   const [searchingAddress, setSearchingAddress] = useState(false)
+  const [showLocationWarning, setShowLocationWarning] = useState(false)
 
   // Función para abrir el modal de opciones de ubicación
   const handleLocationClick = (rowIndex: number) => {
@@ -1023,7 +1024,7 @@ export default function Home() {
   }
 
   // Función para abrir el selector de mapa
-  const handleOpenMapPicker = () => {
+  const handleOpenMapPicker = async () => {
     if (locationModalRow === null || !sheetData) return
     
     // Obtener coordenadas existentes si las hay para centrar el mapa
@@ -1043,9 +1044,54 @@ export default function Home() {
       }
     }
     
+    // Pre-cargar el domicilio del puesto en el campo de búsqueda
+    const domicilioIndex = headers.findIndex(h => h === 'domicilio' || h.includes('direccion') || h.includes('dirección'))
+    const localidadIndex = headers.findIndex(h => h === 'localidad' || h === 'ciudad' || h === 'partido')
+    
+    let addressSuggestion = ''
+    if (domicilioIndex !== -1) {
+      const domicilio = String(sheetData.data[locationModalRow][domicilioIndex] || '').trim()
+      if (domicilio) {
+        addressSuggestion = domicilio
+        // Agregar localidad si existe para búsqueda más precisa
+        if (localidadIndex !== -1) {
+          const localidad = String(sheetData.data[locationModalRow][localidadIndex] || '').trim()
+          if (localidad) {
+            addressSuggestion += `, ${localidad}`
+          }
+        }
+      }
+    }
+    
     setManualCoords({ lat: initialLat, lng: initialLng })
-    setAddressSearch('') // Limpiar búsqueda anterior
+    setAddressSearch(addressSuggestion)
     setShowMapPicker(true)
+    
+    // Si hay domicilio, buscar automáticamente y mostrar aviso
+    if (addressSuggestion) {
+      setSearchingAddress(true)
+      setShowLocationWarning(true) // Mostrar popup de aviso
+      
+      try {
+        const response = await fetch(
+          `/api/geocode?q=${encodeURIComponent(addressSuggestion)}`
+        )
+        
+        if (response.ok) {
+          const data = await response.json()
+          const results = data.results
+          
+          if (results && results.length > 0) {
+            const { lat, lon } = results[0]
+            setManualCoords({ lat: parseFloat(lat), lng: parseFloat(lon) })
+          }
+        }
+      } catch (error) {
+        console.error('Error buscando dirección automáticamente:', error)
+      } finally {
+        setSearchingAddress(false)
+      }
+    }
   }
 
   // Función para guardar ubicación manual del mapa
@@ -1073,6 +1119,7 @@ export default function Home() {
       setShowMapPicker(false)
       setLocationModalRow(null)
       setManualCoords(null)
+      setShowLocationWarning(false)
       setCameFromMobileSearch(false) // No volver a búsqueda después de guardar
     } finally {
       setSavingManualLocation(false)
@@ -3585,9 +3632,31 @@ export default function Home() {
               <button className="modal-close" onClick={() => {
                 setShowMapPicker(false)
                 setManualCoords(null)
+                setShowLocationWarning(false)
               }}>×</button>
             </div>
             <div className="modal-body map-body">
+              {/* Popup de advertencia para revisar ubicación - OBLIGATORIO */}
+              {showLocationWarning && (
+                <div className="location-warning-overlay">
+                  <div className="location-warning-popup">
+                    <div className="location-warning-content">
+                      <span className="location-warning-icon">📍</span>
+                      <div className="location-warning-text">
+                        <strong>Por favor, revisar ubicación</strong>
+                        <p>Verificá que el marcador esté en la posición correcta del puesto</p>
+                      </div>
+                    </div>
+                    <button 
+                      className="location-warning-close"
+                      onClick={() => setShowLocationWarning(false)}
+                    >
+                      ✓ Entendido
+                    </button>
+                  </div>
+                </div>
+              )}
+              
               <p className="map-instructions">📍 Busca una dirección o arrastra el marcador en el mapa</p>
               <p className="map-instructions-hint">(Busca una dirección aproximada para poder ubicarla con mayor precisión)</p>
               
@@ -3664,6 +3733,7 @@ export default function Home() {
                   if (confirmed) {
                     setShowMapPicker(false)
                     setManualCoords(null)
+                    setShowLocationWarning(false)
                   }
                 }}
                 disabled={savingManualLocation}
@@ -5378,6 +5448,7 @@ export default function Home() {
               setLocationModalRow(null)
               setShowMapPicker(false)
               setManualCoords(null)
+              setShowLocationWarning(false)
               setShowMobileSearch(false)
               setMobileSearchQuery('')
               setShowMobileStats(false)
