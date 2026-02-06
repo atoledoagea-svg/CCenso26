@@ -5300,34 +5300,6 @@ export default function Home() {
             >
               {loadingData ? 'Cargando...' : 'Recargar Datos'}
             </button>
-            {/* Selector rápido de hojas por usuario - Para supervisores y admins */}
-            {sheetData?.permissions?.isAdmin && allPermissions.filter(p => p.assignedSheet).length > 0 && (
-              <div className="quick-user-sheet-selector">
-                <select
-                  value={adminSelectedSheet || ''}
-                  onChange={(e) => {
-                    setAdminSelectedSheet(e.target.value)
-                    setCurrentPage(1)
-                    if (accessToken) {
-                      loadSheetData(accessToken, e.target.value)
-                    }
-                  }}
-                  className="quick-sheet-select"
-                  disabled={loadingData}
-                >
-                  <option value="Todos">📊 Todos los PDV</option>
-                  {allPermissions
-                    .filter(p => p.assignedSheet)
-                    // Ocultar usuarios con hoja "test" para supervisores (solo admins pueden verlos)
-                    .filter(p => sheetData?.permissions?.role === 'admin' || p.assignedSheet?.toLowerCase() !== 'test')
-                    .map((perm, idx) => (
-                      <option key={idx} value={perm.assignedSheet}>
-                        👤 {perm.email.split('@')[0]} → {perm.assignedSheet}
-                      </option>
-                    ))}
-                </select>
-              </div>
-            )}
             {/* Botón Descargar Reporte - Solo visible para admins */}
             {sheetData?.permissions?.isAdmin && (
             <button 
