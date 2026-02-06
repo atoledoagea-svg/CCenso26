@@ -83,6 +83,13 @@ export default function Home() {
   const [searchTerm, setSearchTerm] = useState('')
   const [searchType, setSearchType] = useState<'id' | 'paquete'>('id')
   const [filterRelevado, setFilterRelevado] = useState<'todos' | 'relevados' | 'no_relevados'>('todos')
+  const [filterPartido, setFilterPartido] = useState<string>('')
+  const [filterLocalidad, setFilterLocalidad] = useState<string>('')
+  
+  // Ordenamiento de columnas (tipo Excel)
+  const [sortColumn, setSortColumn] = useState<number | null>(null)
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+  
   const [showStats, setShowStats] = useState(false)
   
   // Stats by sheets states (for admin)
@@ -183,6 +190,11 @@ export default function Home() {
   const [nuevoPdvImagePreview, setNuevoPdvImagePreview] = useState<string | null>(null)
   const [nuevoPdvImageUrl, setNuevoPdvImageUrl] = useState<string | null>(null)
   const [uploadingNuevoPdvImage, setUploadingNuevoPdvImage] = useState(false)
+  
+  // Modal para campos obligatorios faltantes
+  const [showMissingFieldsModal, setShowMissingFieldsModal] = useState(false)
+  const [missingFields, setMissingFields] = useState<{name: string, index: number, hint?: string}[]>([])
+  const [pendingSaveAction, setPendingSaveAction] = useState<'edit' | 'nuevoPdv' | null>(null)
 
   const CLIENT_ID = '549677208908-9h6q933go4ss870pbq8gd8gaae75k338.apps.googleusercontent.com'
   const API_KEY = 'AIzaSyCJUD23abF8LcZPp7e8eiK0D5IfFoRCxUc'
@@ -1243,42 +1255,47 @@ export default function Home() {
     }
   }
 
-  const handleSaveRow = async () => {
+  const handleSaveRow = async (skipValidation: boolean = false) => {
     if (!accessToken || editingRow === null || !sheetData || !userEmail) return
     
     const headers = sheetData.headers.map(h => h.toLowerCase().trim())
-    const errores: string[] = []
     
-    // Paquete es obligatorio SIEMPRE (en todos los estados)
-    const paqueteIndex = headers.findIndex(h => h.includes('paquete'))
-    if (paqueteIndex !== -1 && !String(editedValues[paqueteIndex] || '').trim()) {
-      errores.push('- Paquete')
-    }
-    
-    // Validar campos obligatorios adicionales solo si el puesto está activo
-    if (puestoStatus === 'abierto') {
-      // Buscar índice de Venta productos no editoriales
-      const ventaNoEditorialIndex = headers.findIndex(h => 
-        h.includes('venta') && h.includes('no editorial')
-      )
+    if (!skipValidation) {
+      const camposFaltantes: {name: string, index: number, hint?: string}[] = []
       
-      // Buscar índice de Teléfono
-      const telefonoIndex = headers.findIndex(h => 
-        h.includes('telefono') || h.includes('teléfono')
-      )
-      
-      if (ventaNoEditorialIndex !== -1 && !String(editedValues[ventaNoEditorialIndex] || '').trim()) {
-        errores.push('- Venta productos no editoriales')
+      // Paquete es obligatorio SIEMPRE (en todos los estados)
+      const paqueteIndex = headers.findIndex(h => h.includes('paquete'))
+      if (paqueteIndex !== -1 && !String(editedValues[paqueteIndex] || '').trim()) {
+        camposFaltantes.push({ name: 'Paquete', index: paqueteIndex })
       }
       
-      if (telefonoIndex !== -1 && !String(editedValues[telefonoIndex] || '').trim()) {
-        errores.push('- Teléfono (poner 0 si no se obtiene)')
+      // Validar campos obligatorios adicionales solo si el puesto está activo
+      if (puestoStatus === 'abierto') {
+        // Buscar índice de Venta productos no editoriales
+        const ventaNoEditorialIndex = headers.findIndex(h => 
+          h.includes('venta') && h.includes('no editorial')
+        )
+        
+        // Buscar índice de Teléfono
+        const telefonoIndex = headers.findIndex(h => 
+          h.includes('telefono') || h.includes('teléfono')
+        )
+        
+        if (ventaNoEditorialIndex !== -1 && !String(editedValues[ventaNoEditorialIndex] || '').trim()) {
+          camposFaltantes.push({ name: 'Venta productos no editoriales', index: ventaNoEditorialIndex })
+        }
+        
+        if (telefonoIndex !== -1 && !String(editedValues[telefonoIndex] || '').trim()) {
+          camposFaltantes.push({ name: 'Teléfono', index: telefonoIndex, hint: 'Poner 0 si no se obtiene' })
+        }
       }
-    }
-    
-    if (errores.length > 0) {
-      alert(`⚠️ Por favor complete los siguientes campos obligatorios:\n\n${errores.join('\n')}`)
-      return
+      
+      if (camposFaltantes.length > 0) {
+        setMissingFields(camposFaltantes)
+        setPendingSaveAction('edit')
+        setShowMissingFieldsModal(true)
+        return
+      }
     }
     
     const confirmSave = window.confirm('¿Estás seguro de que deseas guardar los cambios?')
@@ -1336,6 +1353,17 @@ export default function Home() {
         if (lngIndex !== -1 && capturedLongitude) {
           valuesToSave[lngIndex] = capturedLongitude
         }
+      }
+      
+      // Normalizar Localidad/Barrio y Partido a Title Case para consistencia
+      const localidadIdx = getLocalidadIndex()
+      const partidoIdx = getPartidoIndex()
+      
+      if (localidadIdx !== -1 && valuesToSave[localidadIdx]) {
+        valuesToSave[localidadIdx] = toTitleCase(String(valuesToSave[localidadIdx]).trim())
+      }
+      if (partidoIdx !== -1 && valuesToSave[partidoIdx]) {
+        valuesToSave[partidoIdx] = toTitleCase(String(valuesToSave[partidoIdx]).trim())
       }
       
       const response = await fetch('/api/update', {
@@ -1457,6 +1485,66 @@ export default function Home() {
     const headers = sheetData.headers.map(h => h.toLowerCase().trim())
     return headers.findIndex(h => h.includes('paquete'))
   }
+
+  // Get Partido column index
+  const getPartidoIndex = () => {
+    if (!sheetData) return -1
+    const headers = sheetData.headers.map(h => h.toLowerCase().trim())
+    return headers.findIndex(h => h === 'partido' || h === 'partido:')
+  }
+
+  // Get Localidad column index
+  const getLocalidadIndex = () => {
+    if (!sheetData) return -1
+    const headers = sheetData.headers.map(h => h.toLowerCase().trim())
+    return headers.findIndex(h => 
+      h === 'localidad' || h === 'localidad:' || 
+      h === 'localidad/barrio' || h === 'localidad/barrio:' ||
+      h === 'localidad / barrio' || h === 'localidad / barrio:' ||
+      h === 'barrio' || h === 'barrio:'
+    )
+  }
+
+  // Normalizar texto a Title Case (primera letra de cada palabra en mayúscula)
+  const toTitleCase = (str: string): string => {
+    return str
+      .toLowerCase()
+      .split(' ')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ')
+  }
+
+  // Obtener valores únicos de una columna para los filtros (normalizados)
+  const getUniqueColumnValues = (columnIndex: number): string[] => {
+    if (!sheetData || columnIndex === -1) return []
+    const valuesMap = new Map<string, string>() // lowercase -> titleCase
+    sheetData.data.forEach(row => {
+      const value = String(row[columnIndex] || '').trim()
+      if (value) {
+        const lowerKey = value.toLowerCase()
+        // Solo guardar si no existe, para mantener consistencia
+        if (!valuesMap.has(lowerKey)) {
+          valuesMap.set(lowerKey, toTitleCase(value))
+        }
+      }
+    })
+    return Array.from(valuesMap.values()).sort()
+  }
+
+  // Valores únicos para los filtros de ubicación
+  const partidoOptions = getUniqueColumnValues(getPartidoIndex())
+  const localidadOptions = filterPartido 
+    ? getUniqueColumnValues(getLocalidadIndex()).filter(loc => {
+        const partidoIdx = getPartidoIndex()
+        const localidadIdx = getLocalidadIndex()
+        if (partidoIdx === -1 || localidadIdx === -1) return true
+        // Comparación case-insensitive
+        return sheetData?.data.some(row => 
+          String(row[partidoIdx] || '').trim().toLowerCase() === filterPartido.toLowerCase() &&
+          String(row[localidadIdx] || '').trim().toLowerCase() === loc.toLowerCase()
+        )
+      })
+    : getUniqueColumnValues(getLocalidadIndex())
 
   // Campos para estadísticas con gráficos
   const statsFields = [
@@ -2435,6 +2523,14 @@ export default function Home() {
 
     setSavingNuevoPdv(true)
     try {
+      // Normalizar Partido y Localidad a Title Case
+      const normalizedPdvData = {
+        ...nuevoPdvData,
+        partido: nuevoPdvData.partido ? toTitleCase(nuevoPdvData.partido.trim()) : '',
+        localidad: nuevoPdvData.localidad ? toTitleCase(nuevoPdvData.localidad.trim()) : '',
+        imageUrl: nuevoPdvImageUrl || ''
+      }
+      
       const response = await fetch('/api/alta-pdv', {
         method: 'POST',
         headers: {
@@ -2442,10 +2538,7 @@ export default function Home() {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          pdvData: {
-            ...nuevoPdvData,
-            imageUrl: nuevoPdvImageUrl || ''
-          }
+          pdvData: normalizedPdvData
         })
       })
 
@@ -2498,19 +2591,83 @@ export default function Home() {
       if (filterRelevado === 'relevados' && !isRelevado) return false
       if (filterRelevado === 'no_relevados' && isRelevado) return false
     }
+
+    // Filtro por Partido (case-insensitive)
+    if (filterPartido) {
+      const partidoIdx = getPartidoIndex()
+      if (partidoIdx !== -1) {
+        const rowPartido = String(row[partidoIdx] || '').trim().toLowerCase()
+        if (rowPartido !== filterPartido.toLowerCase()) return false
+      }
+    }
+
+    // Filtro por Localidad/Barrio (case-insensitive)
+    if (filterLocalidad) {
+      const localidadIdx = getLocalidadIndex()
+      if (localidadIdx !== -1) {
+        const rowLocalidad = String(row[localidadIdx] || '').trim().toLowerCase()
+        if (rowLocalidad !== filterLocalidad.toLowerCase()) return false
+      }
+    }
     
     return true
   }) || []
 
-  // Pagination logic
-  const totalPages = Math.ceil(filteredData.length / itemsPerPage)
+  // Ordenar datos si hay una columna seleccionada
+  const sortedData = sortColumn !== null 
+    ? [...filteredData].sort((a, b) => {
+        const valueA = String(a[sortColumn] || '').trim().toLowerCase()
+        const valueB = String(b[sortColumn] || '').trim().toLowerCase()
+        
+        // Intentar ordenar numéricamente si ambos son números
+        const numA = parseFloat(valueA)
+        const numB = parseFloat(valueB)
+        
+        if (!isNaN(numA) && !isNaN(numB)) {
+          return sortDirection === 'asc' ? numA - numB : numB - numA
+        }
+        
+        // Ordenar alfabéticamente
+        if (sortDirection === 'asc') {
+          return valueA.localeCompare(valueB, 'es')
+        } else {
+          return valueB.localeCompare(valueA, 'es')
+        }
+      })
+    : filteredData
+
+  // Función para manejar clic en encabezado de columna
+  const handleColumnSort = (columnIndex: number) => {
+    if (sortColumn === columnIndex) {
+      // Si ya está ordenando por esta columna, cambiar dirección
+      if (sortDirection === 'asc') {
+        setSortDirection('desc')
+      } else {
+        // Si ya estaba en desc, quitar ordenamiento
+        setSortColumn(null)
+        setSortDirection('asc')
+      }
+    } else {
+      // Nueva columna, ordenar ascendente
+      setSortColumn(columnIndex)
+      setSortDirection('asc')
+    }
+  }
+
+  // Pagination logic (usa sortedData que ya incluye filtrado + ordenamiento)
+  const totalPages = Math.ceil(sortedData.length / itemsPerPage)
   const startIndex = (currentPage - 1) * itemsPerPage
   const endIndex = startIndex + itemsPerPage
-  const paginatedData = filteredData.slice(startIndex, endIndex)
+  const paginatedData = sortedData.slice(startIndex, endIndex)
   
   useEffect(() => {
     setCurrentPage(1)
-  }, [searchTerm, searchType, filterRelevado])
+  }, [searchTerm, searchType, filterRelevado, filterPartido, filterLocalidad])
+
+  // Limpiar localidad cuando cambia el partido
+  useEffect(() => {
+    setFilterLocalidad('')
+  }, [filterPartido])
 
   // Efecto para mostrar un tip aleatorio durante la carga
   useEffect(() => {
@@ -2621,6 +2778,101 @@ export default function Home() {
       >
         🔄
       </button>
+
+      {/* Modal de Campos Obligatorios Faltantes */}
+      {showMissingFieldsModal && missingFields.length > 0 && (
+        <div className="modal-overlay" onClick={() => setShowMissingFieldsModal(false)}>
+          <div className="modal-content modal-missing-fields" onClick={e => e.stopPropagation()}>
+            <div className="modal-header modal-header-warning">
+              <h2>⚠️ Campos Obligatorios</h2>
+              <button className="modal-close" onClick={() => setShowMissingFieldsModal(false)}>×</button>
+            </div>
+            <div className="modal-body">
+              <p className="missing-fields-intro">
+                Por favor complete los siguientes campos para poder guardar:
+              </p>
+              <div className="missing-fields-form">
+                {missingFields.map((field, idx) => (
+                  <div key={idx} className="missing-field-item">
+                    <label className="missing-field-label">
+                      {field.name}
+                      {field.hint && <span className="missing-field-hint">({field.hint})</span>}
+                    </label>
+                    {pendingSaveAction === 'edit' && field.name === 'Venta productos no editoriales' ? (
+                      <select
+                        className="missing-field-input"
+                        value={editedValues[field.index] || ''}
+                        onChange={(e) => {
+                          const newValues = [...editedValues]
+                          newValues[field.index] = e.target.value
+                          setEditedValues(newValues)
+                        }}
+                        autoFocus={idx === 0}
+                      >
+                        <option value="">-- Seleccionar opción --</option>
+                        <option value="Nada">Nada</option>
+                        <option value="Poco">Poco</option>
+                        <option value="Mucho">Mucho</option>
+                        <option value="Puesto Cerrado">Puesto Cerrado</option>
+                        <option value="Cerrado Definitivamente">Cerrado Definitivamente</option>
+                        <option value="Zona Peligrosa">Zona Peligrosa</option>
+                        <option value="No se encuentra el puesto">No se encuentra el puesto</option>
+                      </select>
+                    ) : (
+                      <input
+                        type="text"
+                        className="missing-field-input"
+                        value={pendingSaveAction === 'edit' ? (editedValues[field.index] || '') : ''}
+                        onChange={(e) => {
+                          if (pendingSaveAction === 'edit') {
+                            const newValues = [...editedValues]
+                            newValues[field.index] = e.target.value
+                            setEditedValues(newValues)
+                          }
+                        }}
+                        placeholder={field.hint || `Ingrese ${field.name.toLowerCase()}`}
+                        autoFocus={idx === 0}
+                      />
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button 
+                className="btn-secondary"
+                onClick={() => setShowMissingFieldsModal(false)}
+              >
+                Cancelar
+              </button>
+              <button 
+                className="btn-primary"
+                onClick={() => {
+                  // Verificar que todos los campos estén completos
+                  const allFilled = missingFields.every(field => {
+                    if (pendingSaveAction === 'edit') {
+                      return String(editedValues[field.index] || '').trim() !== ''
+                    }
+                    return true
+                  })
+                  
+                  if (!allFilled) {
+                    alert('Por favor complete todos los campos')
+                    return
+                  }
+                  
+                  setShowMissingFieldsModal(false)
+                  if (pendingSaveAction === 'edit') {
+                    handleSaveRow(true) // Skip validation since we just filled the fields
+                  }
+                }}
+              >
+                ✓ Completar y Guardar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Edit Modal */}
       {editingRow !== null && sheetData && (() => {
@@ -3539,7 +3791,7 @@ export default function Home() {
                 <button className="btn-secondary" onClick={handleCancelEdit} disabled={saving}>
                   Cancelar
                 </button>
-                <button className="btn-primary" onClick={handleSaveRow} disabled={saving || uploadingImage}>
+                <button className="btn-primary" onClick={() => handleSaveRow(false)} disabled={saving || uploadingImage}>
                   {saving ? 'Guardando...' : 'Guardar Cambios'}
                 </button>
               </div>
@@ -5176,17 +5428,62 @@ export default function Home() {
           <h1>Relevamiento de PDV</h1>
         </div>
         <div className="header-right">
-          {sheetData?.permissions?.isAdmin && (
+          {/* Botones de acción - Solo desktop */}
+          <div className="header-action-buttons">
+            {/* Selector de hojas para admin */}
+            {sheetData?.permissions?.isAdmin && availableSheets.length > 0 && (
+              <div className="header-sheet-selector">
+                <label className="header-sheet-label">Relevamiento:</label>
+                <select
+                  value={adminSelectedSheet || availableSheets[0] || ''}
+                  onChange={(e) => {
+                    setAdminSelectedSheet(e.target.value)
+                    setCurrentPage(1)
+                    if (accessToken) {
+                      loadSheetData(accessToken, e.target.value)
+                    }
+                  }}
+                  className="header-sheet-select"
+                  disabled={loadingData}
+                >
+                  <option value="Todos">📊 Todos</option>
+                  {availableSheets
+                    .filter(sheet => sheetData?.permissions?.role === 'admin' || sheet.toLowerCase() !== 'test')
+                    .map((sheet, idx) => (
+                      <option key={idx} value={sheet}>{sheet}</option>
+                    ))}
+                </select>
+              </div>
+            )}
+            {sheetData?.permissions?.isAdmin && (
+              <button 
+                className="btn-download-report"
+                onClick={() => downloadSheetReport()}
+                disabled={loadingData || !sheetData}
+                title="Descargar reporte de la hoja actual"
+              >
+                📥 Descargar Reporte
+              </button>
+            )}
             <button 
-              className="btn-admin"
-              onClick={() => {
-                setShowAdminSidebar(true)
-                loadAllSheetsStats() // Cargar stats para el mini resumen
-              }}
+              className="btn-download-cuestionario"
+              onClick={() => setShowNuevoPdvModal(true)}
+              title="Agregar nuevo PDV o descargar cuestionario"
             >
-              ⚙️ Panel Admin
+              ➕ Nuevo PDV
             </button>
-          )}
+            {sheetData?.permissions?.isAdmin && (
+              <button 
+                className="btn-admin"
+                onClick={() => {
+                  setShowAdminSidebar(true)
+                  loadAllSheetsStats() // Cargar stats para el mini resumen
+                }}
+              >
+                ⚙️ Panel Admin
+              </button>
+            )}
+          </div>
           {/* Contador de PDV relevados para usuarios con IDs asignados */}
           {sheetData && userEmail && sheetData.permissions?.allowedIds && sheetData.permissions.allowedIds.length > 0 && !sheetData.permissions.isAdmin && (() => {
             const stats = getUserStats(userEmail, sheetData.permissions.allowedIds)
@@ -5222,6 +5519,61 @@ export default function Home() {
 
       {/* Main Content */}
       <main className="dashboard-main">
+        {/* Mobile Location Filters Bar - Solo visible en móvil */}
+        <div className="mobile-top-filters">
+          {partidoOptions.length > 0 && (
+            <>
+              <select 
+                value={filterPartido}
+                onChange={(e) => setFilterPartido(e.target.value)}
+                className="mobile-top-select"
+              >
+                <option value="">📍 Todos</option>
+                {partidoOptions.map((partido, idx) => (
+                  <option key={idx} value={partido}>{partido}</option>
+                ))}
+              </select>
+              
+              <select 
+                value={filterLocalidad}
+                onChange={(e) => setFilterLocalidad(e.target.value)}
+                className="mobile-top-select"
+                disabled={!filterPartido}
+              >
+                <option value="">🏘️ Localidad</option>
+                {localidadOptions.map((loc, idx) => (
+                  <option key={idx} value={loc}>{loc}</option>
+                ))}
+              </select>
+              
+              {(filterPartido || filterLocalidad) && (
+                <button 
+                  className="mobile-top-clear"
+                  onClick={() => {
+                    setFilterPartido('')
+                    setFilterLocalidad('')
+                  }}
+                >
+                  ✕
+                </button>
+              )}
+            </>
+          )}
+          
+          <button 
+            className={`mobile-top-reload ${loadingData ? 'loading' : ''}`}
+            onClick={() => {
+              if (accessToken && !loadingData) {
+                loadSheetData(accessToken, adminSelectedSheet || '')
+              }
+            }}
+            disabled={loadingData}
+            title="Recargar datos"
+          >
+            🔄
+          </button>
+        </div>
+
         {/* Toolbar */}
         <div className="toolbar">
           <div className="toolbar-left">
@@ -5260,32 +5612,48 @@ export default function Home() {
               <option value="relevados">✅ Solo relevados</option>
               <option value="no_relevados">⏳ Sin relevar</option>
             </select>
-            {/* Selector de hojas para admin */}
-            {sheetData?.permissions?.isAdmin && availableSheets.length > 0 && (
-              <div className="sheet-filter-group">
-                <label className="sheet-filter-label">Relevamiento:</label>
-                <select
-                  value={adminSelectedSheet || availableSheets[0] || ''}
-                  onChange={(e) => {
-                    setAdminSelectedSheet(e.target.value)
-                    setCurrentPage(1) // Resetear a la primera página al cambiar de hoja
-                    if (accessToken) {
-                      loadSheetData(accessToken, e.target.value)
-                    }
-                  }}
-                  className="sheet-filter-select"
-                  disabled={loadingData}
+            
+            {/* Filtros por ubicación - Desktop */}
+            {partidoOptions.length > 0 && (
+              <div className="desktop-location-filters">
+                <select 
+                  value={filterPartido}
+                  onChange={(e) => setFilterPartido(e.target.value)}
+                  className="filter-location-select"
                 >
-                  <option value="Todos">📊 Todos</option>
-                  {availableSheets
-                    // Ocultar hoja "test" para supervisores (solo admins pueden verla)
-                    .filter(sheet => sheetData?.permissions?.role === 'admin' || sheet.toLowerCase() !== 'test')
-                    .map((sheet, idx) => (
-                      <option key={idx} value={sheet}>{sheet}</option>
-                    ))}
+                  <option value="">📍 Todos</option>
+                  {partidoOptions.map((partido, idx) => (
+                    <option key={idx} value={partido}>{partido}</option>
+                  ))}
                 </select>
+                
+                <select 
+                  value={filterLocalidad}
+                  onChange={(e) => setFilterLocalidad(e.target.value)}
+                  className="filter-location-select"
+                  disabled={!filterPartido || localidadOptions.length === 0}
+                >
+                  <option value="">🏘️ Localidad</option>
+                  {localidadOptions.map((loc, idx) => (
+                    <option key={idx} value={loc}>{loc}</option>
+                  ))}
+                </select>
+                
+                {(filterPartido || filterLocalidad) && (
+                  <button 
+                    className="btn-clear-location-filters"
+                    onClick={() => {
+                      setFilterPartido('')
+                      setFilterLocalidad('')
+                    }}
+                    title="Limpiar filtros de ubicación"
+                  >
+                    ✕
+                  </button>
+                )}
               </div>
             )}
+            
             {/* Indicador de hoja asignada para usuarios comunes (sin acceso a ALTA PDV) */}
             {!sheetData?.permissions?.isAdmin && sheetData?.permissions?.assignedSheet && (
               <div className="sheet-filter-group user-sheet-indicator">
@@ -5300,29 +5668,11 @@ export default function Home() {
             >
               {loadingData ? 'Cargando...' : 'Recargar Datos'}
             </button>
-            {/* Botón Descargar Reporte - Solo visible para admins */}
-            {sheetData?.permissions?.isAdmin && (
-            <button 
-              className="btn-download-report"
-              onClick={() => downloadSheetReport()}
-              disabled={loadingData || !sheetData}
-              title="Descargar reporte de la hoja actual"
-            >
-              📥 Descargar Reporte
-              </button>
-            )}
-            <button 
-              className="btn-download-cuestionario"
-              onClick={() => setShowNuevoPdvModal(true)}
-              title="Agregar nuevo PDV o descargar cuestionario"
-            >
-              ➕ Nuevo PDV
-            </button>
           </div>
           <div className="toolbar-right">
-            {sheetData && filteredData.length > 0 && (
+            {sheetData && sortedData.length > 0 && (
               <span className="results-count">
-                Mostrando {startIndex + 1} a {Math.min(endIndex, filteredData.length)} de {filteredData.length} registros
+                Mostrando {startIndex + 1} a {Math.min(endIndex, sortedData.length)} de {sortedData.length} registros
               </span>
             )}
           </div>
@@ -5354,7 +5704,7 @@ export default function Home() {
         {/* Data Table */}
         {!loadingData && sheetData && (
           <div className="table-container">
-            {filteredData.length === 0 ? (
+            {sortedData.length === 0 ? (
               <div className="no-data-container">
                 <p>No hay datos disponibles</p>
                 {!sheetData.permissions?.isAdmin && (
@@ -5370,7 +5720,23 @@ export default function Home() {
                       // Ocultar columna DISPOSITIVO en la tabla
                       const headerLower = header.toLowerCase().trim()
                       if (headerLower === 'dispositivo' || headerLower.includes('dispositivo')) return null
-                      return <th key={idx}>{header}</th>
+                      return (
+                        <th 
+                          key={idx} 
+                          className={`sortable-header ${sortColumn === idx ? 'sorted' : ''}`}
+                          onClick={() => handleColumnSort(idx)}
+                          title={`Ordenar por ${header}`}
+                        >
+                          <span className="header-content">
+                            {header}
+                            <span className="sort-indicator">
+                              {sortColumn === idx ? (
+                                sortDirection === 'asc' ? ' ▲' : ' ▼'
+                              ) : ' ⇅'}
+                            </span>
+                          </span>
+                        </th>
+                      )
                     })}
                   </tr>
                 </thead>
@@ -5420,10 +5786,10 @@ export default function Home() {
         )}
 
         {/* Pagination */}
-        {!loadingData && sheetData && filteredData.length > 0 && (
+        {!loadingData && sheetData && sortedData.length > 0 && (
           <div className="pagination-container">
             <div className="pagination-info">
-              Mostrando {startIndex + 1} a {Math.min(endIndex, filteredData.length)} de {filteredData.length} registros
+              Mostrando {startIndex + 1} a {Math.min(endIndex, sortedData.length)} de {sortedData.length} registros
             </div>
             <div className="pagination-controls">
               <button 
@@ -5699,12 +6065,28 @@ export default function Home() {
               )
               const { relevadorIndex } = getAutoFillIndexes()
               
+              const partidoIdx = getPartidoIndex()
+              const localidadIdx = getLocalidadIndex()
+              
               const results = sheetData.data.filter((row, idx) => {
+                // Filtro por texto
                 if (mobileSearchType === 'id') {
-                  return String(row[0] || '').toLowerCase().includes(query)
+                  if (!String(row[0] || '').toLowerCase().includes(query)) return false
                 } else {
-                  return paqueteIndex !== -1 && String(row[paqueteIndex] || '').toLowerCase().includes(query)
+                  if (paqueteIndex === -1 || !String(row[paqueteIndex] || '').toLowerCase().includes(query)) return false
                 }
+                
+                // Filtro por Partido (case-insensitive)
+                if (filterPartido && partidoIdx !== -1) {
+                  if (String(row[partidoIdx] || '').trim().toLowerCase() !== filterPartido.toLowerCase()) return false
+                }
+                
+                // Filtro por Localidad (case-insensitive)
+                if (filterLocalidad && localidadIdx !== -1) {
+                  if (String(row[localidadIdx] || '').trim().toLowerCase() !== filterLocalidad.toLowerCase()) return false
+                }
+                
+                return true
               }).slice(0, 20) // Limitar a 20 resultados
               
               if (results.length === 0) {
