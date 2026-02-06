@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { validateGoogleToken, getAccessTokenFromRequest } from '@/app/lib/auth'
+import { validateGoogleToken, getAccessTokenFromRequest, getUserRole } from '@/app/lib/auth'
 import { getSheetsClient, getUserPermissions, getFirstSheetName } from '@/app/lib/sheets'
 
 // Forzar renderizado dinámico (usa headers)
@@ -42,12 +42,14 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Obtener permisos del usuario (incluyendo hoja asignada)
+    // Obtener permisos del usuario (incluyendo hoja asignada y nivel)
     const userPermissions = await getUserPermissions(accessToken, userInfo.email)
-    const { allowedIds, assignedSheet } = userPermissions
+    const { allowedIds, assignedSheet, level } = userPermissions
+    const role = getUserRole(userInfo.email, level)
+    const isAdmin = role === 'admin' || role === 'supervisor'
 
-    // Si no es admin, verificar permisos
-    if (!userInfo.isAdmin) {
+    // Si no es admin/supervisor, verificar permisos
+    if (!isAdmin) {
       // Obtener el ID de la fila (primera columna)
       const rowIdValue = values[0]
       if (!rowIdValue) {
@@ -78,22 +80,22 @@ export async function POST(request: NextRequest) {
 
     try {
       // Determinar qué hoja usar:
-      // 1. Si es admin y especificó una hoja en la request, usar esa
+      // 1. Si es admin/supervisor y especificó una hoja en la request, usar esa
       // 2. Si no es admin y tiene hoja asignada, usar la asignada
-      // 3. Si es admin y tiene "Todos" (sin hoja específica), buscar en todas las hojas
+      // 3. Si es admin/supervisor y tiene "Todos" (sin hoja específica), buscar en todas las hojas
       // 4. Si no, usar la primera hoja
       let sheetName: string = ''
       let actualRowNumber = -1
       
-      if (userInfo.isAdmin && requestedSheetName) {
+      if (isAdmin && requestedSheetName) {
         sheetName = requestedSheetName
-        console.log('Admin usando hoja seleccionada:', sheetName)
-      } else if (!userInfo.isAdmin && assignedSheet) {
+        console.log('Admin/Supervisor usando hoja seleccionada:', sheetName)
+      } else if (!isAdmin && assignedSheet) {
         sheetName = assignedSheet
         console.log('Usuario usando hoja asignada:', sheetName)
-      } else if (userInfo.isAdmin) {
-        // Admin con "Todos" seleccionado - buscar el ID en todas las hojas
-        console.log('Admin con Todos - buscando ID en todas las hojas')
+      } else if (isAdmin) {
+        // Admin/Supervisor con "Todos" seleccionado - buscar el ID en todas las hojas
+        console.log('Admin/Supervisor con Todos - buscando ID en todas las hojas')
         
         // Obtener lista de hojas
         const metaResponse = await sheets.spreadsheets.get({
@@ -103,9 +105,14 @@ export async function POST(request: NextRequest) {
         
         const sheetsList = metaResponse.data.sheets || []
         const excludedSheets = ['Permisos', 'Actividad', 'Hoja 1', 'Hoja 2']
-        const availableSheets = sheetsList
+        let availableSheets = sheetsList
           .map(sheet => sheet.properties?.title || '')
           .filter(name => name && !excludedSheets.includes(name))
+        
+        // Supervisores NO pueden editar en la hoja "test"
+        if (role === 'supervisor') {
+          availableSheets = availableSheets.filter(name => name.toLowerCase() !== 'test')
+        }
         
         // Buscar el ID en cada hoja
         for (const currentSheet of availableSheets) {
@@ -217,4 +224,3 @@ export async function POST(request: NextRequest) {
     )
   }
 }
-
