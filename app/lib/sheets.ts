@@ -209,16 +209,24 @@ export async function getAllSheetsData(accessToken: string): Promise<{ [sheetNam
 }
 
 /**
- * Obtiene los IDs permitidos y la hoja asignada para un usuario específico desde la hoja de Permisos
+ * Niveles de usuario:
+ * 1 = Usuario normal (acceso básico)
+ * 2 = Supervisor (acceso intermedio, sin GPS de usuarios)
+ * 3 = Admin (acceso completo)
  */
-export async function getUserPermissions(accessToken: string, userEmail: string): Promise<{ allowedIds: string[], assignedSheet: string }> {
+export type UserLevel = 1 | 2 | 3
+
+/**
+ * Obtiene los IDs permitidos, hoja asignada y nivel para un usuario específico desde la hoja de Permisos
+ */
+export async function getUserPermissions(accessToken: string, userEmail: string): Promise<{ allowedIds: string[], assignedSheet: string, level: UserLevel }> {
   const sheets = getSheetsClient(accessToken)
   
   try {
-    // Leer toda la hoja de Permisos (A: email, B: IDs, C: Hoja asignada)
+    // Leer toda la hoja de Permisos (A: email, B: IDs, C: Hoja asignada, D: Nivel)
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `${PERMISSIONS_SHEET_NAME}!A:C`,
+      range: `${PERMISSIONS_SHEET_NAME}!A:D`,
     })
 
     const rows = response.data.values || []
@@ -227,28 +235,32 @@ export async function getUserPermissions(accessToken: string, userEmail: string)
     const userEmailLower = userEmail.toLowerCase()
     for (const row of rows) {
       if (row[0] && String(row[0]).toLowerCase() === userEmailLower) {
-        // Si encuentra el usuario, parsear los IDs y la hoja asignada
+        // Si encuentra el usuario, parsear los IDs, la hoja asignada y el nivel
         const idsString = row[1] || ''
         const assignedSheet = row[2] || '' // Columna C: hoja asignada
+        const levelValue = parseInt(String(row[3] || '1'), 10) // Columna D: nivel (default 1)
+        
+        // Validar que el nivel sea 1, 2 o 3
+        const level: UserLevel = (levelValue === 2 || levelValue === 3) ? levelValue as UserLevel : 1
         
         const allowedIds = idsString.trim() === '' 
           ? [] 
           : idsString.split(',').map((id: string) => id.trim()).filter((id: string) => id.length > 0)
         
-        return { allowedIds, assignedSheet }
+        return { allowedIds, assignedSheet, level }
       }
     }
     
-    // Si no encuentra el usuario, retornar vacío
-    return { allowedIds: [], assignedSheet: '' }
+    // Si no encuentra el usuario, retornar nivel 1 (usuario normal)
+    return { allowedIds: [], assignedSheet: '', level: 1 }
   } catch (error: any) {
     // Si la hoja de Permisos no existe, crearla
     if (error.code === 400 && error.message?.includes('Unable to parse range')) {
       await createPermissionsSheet(accessToken)
-      return { allowedIds: [], assignedSheet: '' }
+      return { allowedIds: [], assignedSheet: '', level: 1 }
     }
     console.error('Error obteniendo permisos:', error)
-    return { allowedIds: [], assignedSheet: '' }
+    return { allowedIds: [], assignedSheet: '', level: 1 }
   }
 }
 
@@ -275,13 +287,14 @@ async function createPermissionsSheet(accessToken: string) {
       },
     })
 
-    // Agregar encabezados (incluyendo columna para hoja asignada)
+    // Agregar encabezados (incluyendo columna Nivel)
+    // Nivel: 1=Usuario, 2=Supervisor, 3=Admin
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID,
-      range: `${PERMISSIONS_SHEET_NAME}!A1:C1`,
+      range: `${PERMISSIONS_SHEET_NAME}!A1:D1`,
       valueInputOption: 'RAW',
       requestBody: {
-        values: [['Email', 'IDs Permitidos', 'Hoja Asignada']],
+        values: [['Email', 'IDs Permitidos', 'Hoja Asignada', 'Nivel']],
       },
     })
   } catch (error) {
@@ -296,7 +309,8 @@ export async function saveUserPermissions(
   accessToken: string,
   userEmail: string,
   allowedIds: string[],
-  assignedSheet: string = '' // Nueva columna para la hoja asignada
+  assignedSheet: string = '',
+  level: UserLevel = 1 // Nivel del usuario: 1=Usuario, 2=Supervisor, 3=Admin
 ): Promise<boolean> {
   const sheets = getSheetsClient(accessToken)
   
@@ -316,17 +330,26 @@ export async function saveUserPermissions(
     // Leer toda la hoja para buscar si el usuario ya existe
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `${PERMISSIONS_SHEET_NAME}!A:C`,
+      range: `${PERMISSIONS_SHEET_NAME}!A:D`,
     })
 
     const rows = response.data.values || []
     const userEmailLower = userEmail.toLowerCase()
     let rowIndex = -1
+    let existingLevel = level // Para usuarios nuevos, usar el nivel proporcionado
 
     // Buscar si el usuario ya existe
     for (let i = 1; i < rows.length; i++) {
       if (rows[i][0] && String(rows[i][0]).toLowerCase() === userEmailLower) {
         rowIndex = i + 1 // +1 porque las filas empiezan en 1 (fila 1 es encabezado)
+        // SIEMPRE preservar el nivel existente desde la hoja de Sheets
+        // El nivel solo se puede cambiar editando directamente la hoja
+        if (rows[i][3]) {
+          const parsedLevel = parseInt(String(rows[i][3]), 10)
+          if (parsedLevel === 1 || parsedLevel === 2 || parsedLevel === 3) {
+            existingLevel = parsedLevel as UserLevel
+          }
+        }
         break
       }
     }
@@ -338,21 +361,21 @@ export async function saveUserPermissions(
       // Actualizar fila existente
       await sheets.spreadsheets.values.update({
         spreadsheetId: SPREADSHEET_ID,
-        range: `${PERMISSIONS_SHEET_NAME}!A${rowIndex}:C${rowIndex}`,
+        range: `${PERMISSIONS_SHEET_NAME}!A${rowIndex}:D${rowIndex}`,
         valueInputOption: 'RAW',
         requestBody: {
-          values: [[userEmail, idsString, assignedSheet]],
+          values: [[userEmail, idsString, assignedSheet, existingLevel]],
         },
       })
     } else {
       // Agregar nueva fila
       await sheets.spreadsheets.values.append({
         spreadsheetId: SPREADSHEET_ID,
-        range: `${PERMISSIONS_SHEET_NAME}!A:C`,
+        range: `${PERMISSIONS_SHEET_NAME}!A:D`,
         valueInputOption: 'RAW',
         insertDataOption: 'INSERT_ROWS',
         requestBody: {
-          values: [[userEmail, idsString, assignedSheet]],
+          values: [[userEmail, idsString, assignedSheet, level]],
         },
       })
     }
@@ -365,25 +388,29 @@ export async function saveUserPermissions(
 }
 
 /**
- * Obtiene todos los permisos (solo para admins)
+ * Obtiene todos los permisos (solo para admins/supervisores)
  */
-export async function getAllPermissions(accessToken: string): Promise<Array<{ email: string; allowedIds: string[]; assignedSheet: string }>> {
+export async function getAllPermissions(accessToken: string): Promise<Array<{ email: string; allowedIds: string[]; assignedSheet: string; level: UserLevel }>> {
   const sheets = getSheetsClient(accessToken)
   
   try {
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `${PERMISSIONS_SHEET_NAME}!A:C`,
+      range: `${PERMISSIONS_SHEET_NAME}!A:D`,
     })
 
     const rows = response.data.values || []
-    const permissions: Array<{ email: string; allowedIds: string[]; assignedSheet: string }> = []
+    const permissions: Array<{ email: string; allowedIds: string[]; assignedSheet: string; level: UserLevel }> = []
 
     // Saltar el encabezado (fila 0)
     for (let i = 1; i < rows.length; i++) {
       const email = rows[i][0]
       const idsString = rows[i][1] || ''
       const assignedSheet = rows[i][2] || ''
+      const levelValue = parseInt(String(rows[i][3] || '1'), 10)
+      
+      // Validar que el nivel sea 1, 2 o 3
+      const level: UserLevel = (levelValue === 2 || levelValue === 3) ? levelValue as UserLevel : 1
       
       if (email) {
         const allowedIds = idsString.split(',').map((id: string) => id.trim()).filter((id: string) => id.length > 0)
@@ -391,6 +418,7 @@ export async function getAllPermissions(accessToken: string): Promise<Array<{ em
           email: String(email),
           allowedIds,
           assignedSheet: String(assignedSheet),
+          level,
         })
       }
     }

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { validateGoogleToken, getAccessTokenFromRequest } from '@/app/lib/auth'
-import { getSheetsClient } from '@/app/lib/sheets'
+import { validateGoogleToken, getAccessTokenFromRequest, getUserRole } from '@/app/lib/auth'
+import { getSheetsClient, getUserPermissions } from '@/app/lib/sheets'
 
 // Forzar renderizado dinámico (usa headers)
 export const dynamic = 'force-dynamic'
@@ -10,7 +10,7 @@ const LOGS_SHEET_NAME = 'LOGs GPS'
 
 /**
  * GET /api/gps-logs
- * Obtiene los logs de GPS (solo para admins)
+ * Obtiene los logs de GPS (solo para admins - nivel 3)
  */
 export async function GET(request: NextRequest) {
   try {
@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Validar token y verificar que sea admin
+    // Validar token
     const userInfo = await validateGoogleToken(accessToken)
     if (!userInfo) {
       return NextResponse.json(
@@ -32,7 +32,13 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    if (!userInfo.isAdmin) {
+    // Obtener nivel del usuario desde la hoja de permisos
+    const userPermissions = await getUserPermissions(accessToken, userInfo.email)
+    const role = getUserRole(userInfo.email, userPermissions.level)
+
+    // Solo admins (nivel 3) pueden ver ubicación GPS de usuarios
+    // Supervisores (nivel 2) NO tienen acceso
+    if (role !== 'admin') {
       return NextResponse.json(
         { error: 'Solo administradores pueden ver los logs de GPS' },
         { status: 403 }
@@ -114,4 +120,3 @@ export async function GET(request: NextRequest) {
     )
   }
 }
-

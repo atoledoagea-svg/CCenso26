@@ -23,12 +23,18 @@ declare global {
   }
 }
 
+// Tipos de roles de usuario
+type UserRole = 'user' | 'supervisor' | 'admin'
+type UserLevel = 1 | 2 | 3
+
 interface SheetData {
   headers: string[]
   data: any[][]
   permissions: {
     allowedIds: string[]
     isAdmin: boolean
+    role?: UserRole
+    level?: UserLevel
     assignedSheet?: string
     currentSheet?: string
   }
@@ -38,6 +44,7 @@ interface Permission {
   email: string
   allowedIds: string[]
   assignedSheet?: string
+  level?: UserLevel // 1=Usuario, 2=Supervisor, 3=Admin
 }
 
 export default function Home() {
@@ -1369,7 +1376,7 @@ export default function Home() {
     }
   }
 
-  const handleSavePermissions = async (email: string, ids: string[], sheetName: string = '') => {
+  const handleSavePermissions = async (email: string, ids: string[], sheetName: string = '', level?: UserLevel) => {
     if (!accessToken) return
     
     setSavingPermissions(true)
@@ -1383,7 +1390,8 @@ export default function Home() {
         body: JSON.stringify({
           email: email.trim(),
           allowedIds: ids,
-          assignedSheet: sheetName
+          assignedSheet: sheetName,
+          level: level
         })
       })
       
@@ -4310,15 +4318,18 @@ export default function Home() {
               >
                 📥 Reportes
               </button>
-              <button 
-                className={`sidebar-nav-btn ${adminSidebarTab === 'gps' ? 'active' : ''}`}
-                onClick={() => {
-                  setAdminSidebarTab('gps')
-                  loadGpsLogs()
-                }}
-              >
-                📍 Seguimiento GPS
-              </button>
+              {/* Seguimiento GPS - Solo visible para admins (no supervisores) */}
+              {sheetData?.permissions?.role === 'admin' && (
+                <button 
+                  className={`sidebar-nav-btn ${adminSidebarTab === 'gps' ? 'active' : ''}`}
+                  onClick={() => {
+                    setAdminSidebarTab('gps')
+                    loadGpsLogs()
+                  }}
+                >
+                  📍 Seguimiento GPS
+                </button>
+              )}
             </nav>
             
             <div className="sidebar-content">
@@ -4337,20 +4348,60 @@ export default function Home() {
                     >
                       📊 Todos
                     </button>
-                    {availableSheets.map((sheet, idx) => (
-                      <button
-                        key={idx}
-                        className={`sidebar-sheet-btn ${adminSelectedSheet === sheet ? 'active' : ''}`}
-                        onClick={() => {
-                          setAdminSelectedSheet(sheet)
-                          setCurrentPage(1)
-                          if (accessToken) loadSheetData(accessToken, sheet)
-                        }}
-                      >
-                        📋 {sheet}
-                      </button>
-                    ))}
+                    {availableSheets
+                      // Ocultar hoja "test" para supervisores (solo admins pueden verla)
+                      .filter(sheet => sheetData?.permissions?.role === 'admin' || sheet.toLowerCase() !== 'test')
+                      .map((sheet, idx) => (
+                        <button
+                          key={idx}
+                          className={`sidebar-sheet-btn ${adminSelectedSheet === sheet ? 'active' : ''}`}
+                          onClick={() => {
+                            setAdminSelectedSheet(sheet)
+                            setCurrentPage(1)
+                            if (accessToken) loadSheetData(accessToken, sheet)
+                          }}
+                        >
+                          📋 {sheet}
+                        </button>
+                      ))}
                   </div>
+                  
+                  {/* Hojas asignadas a usuarios - útil para supervisores */}
+                  {allPermissions
+                    .filter(p => p.assignedSheet)
+                    // Ocultar usuarios con hoja "test" para supervisores
+                    .filter(p => sheetData?.permissions?.role === 'admin' || p.assignedSheet?.toLowerCase() !== 'test')
+                    .length > 0 && (
+                    <div className="sidebar-assigned-sheets">
+                      <h4>👥 Hojas por Usuario</h4>
+                      <div className="assigned-sheets-list">
+                        {allPermissions
+                          .filter(p => p.assignedSheet)
+                          // Ocultar usuarios con hoja "test" para supervisores
+                          .filter(p => sheetData?.permissions?.role === 'admin' || p.assignedSheet?.toLowerCase() !== 'test')
+                          .map((perm, idx) => {
+                            const userStats = getUserStats(perm.email, perm.allowedIds)
+                            const percent = userStats.total > 0 ? Math.round((userStats.relevados / userStats.total) * 100) : 0
+                            return (
+                              <button
+                                key={idx}
+                                className={`assigned-sheet-btn ${adminSelectedSheet === perm.assignedSheet ? 'active' : ''}`}
+                                onClick={() => {
+                                  setAdminSelectedSheet(perm.assignedSheet!)
+                                  setCurrentPage(1)
+                                  if (accessToken) loadSheetData(accessToken, perm.assignedSheet!)
+                                }}
+                              >
+                                <span className="assigned-user-name">{perm.email.split('@')[0]}</span>
+                                <span className="assigned-sheet-name">📋 {perm.assignedSheet}</span>
+                                <span className="assigned-progress">{percent}%</span>
+                              </button>
+                            )
+                          })}
+                      </div>
+                    </div>
+                  )}
+                  
                   <div className="sidebar-sheet-info">
                     <span className="info-label">Hoja actual:</span>
                     <span className="info-value">{adminSelectedSheet || 'Hoja 1'}</span>
@@ -4467,8 +4518,8 @@ export default function Home() {
                 </div>
               )}
               
-              {/* Pestaña Seguimiento GPS */}
-              {adminSidebarTab === 'gps' && (
+              {/* Pestaña Seguimiento GPS - Solo visible para admins (no supervisores) */}
+              {adminSidebarTab === 'gps' && sheetData?.permissions?.role === 'admin' && (
                 <div className="sidebar-section">
                   <h3>📍 Seguimiento GPS</h3>
                   <p className="sidebar-description">Ver ubicaciones de usuarios móviles.</p>
@@ -4535,8 +4586,8 @@ export default function Home() {
         </>
       )}
 
-      {/* Modal de Mapa GPS (Admin) */}
-      {showGpsModal && sheetData?.permissions?.isAdmin && (
+      {/* Modal de Mapa GPS (Solo Admin - supervisores NO tienen acceso) */}
+      {showGpsModal && sheetData?.permissions?.role === 'admin' && (
         <div className="modal-overlay" onClick={() => setShowGpsModal(false)}>
           <div className="modal-content modal-gps-map" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
@@ -4603,28 +4654,38 @@ export default function Home() {
                 <span>Total de registros: <strong>{sheetData.data.length}</strong></span>
               </div>
 
-              {/* Add new user form */}
-              <div className="add-user-form">
-                <input
-                  type="email"
-                  placeholder="Email del nuevo usuario"
-                  value={newUserEmail}
-                  onChange={(e) => setNewUserEmail(e.target.value)}
-                  className="add-user-input"
-                />
-                <button 
-                  className="btn-primary"
-                  onClick={() => {
-                    if (newUserEmail.trim()) {
-                      setEditingPermission({ email: newUserEmail.trim(), allowedIds: [] })
-                      setNewPermIds('')
-                    }
-                  }}
-                  disabled={!newUserEmail.trim()}
-                >
-                  Agregar Usuario
-                </button>
-              </div>
+              {/* Add new user form - Solo visible para admins (no supervisores) */}
+              {sheetData?.permissions?.role === 'admin' && (
+                <div className="add-user-form">
+                  <input
+                    type="email"
+                    placeholder="Email del nuevo usuario"
+                    value={newUserEmail}
+                    onChange={(e) => setNewUserEmail(e.target.value)}
+                    className="add-user-input"
+                  />
+                  <button 
+                    className="btn-primary"
+                    onClick={() => {
+                      if (newUserEmail.trim()) {
+                        setEditingPermission({ email: newUserEmail.trim(), allowedIds: [] })
+                        setNewPermIds('')
+                      }
+                    }}
+                    disabled={!newUserEmail.trim()}
+                  >
+                    Agregar Usuario
+                  </button>
+                </div>
+              )}
+              
+              {/* Mensaje para supervisores */}
+              {sheetData?.permissions?.role === 'supervisor' && (
+                <div className="supervisor-notice">
+                  <span className="notice-icon">👁️</span>
+                  <span>Vista de solo lectura - Solo los administradores pueden modificar permisos</span>
+                </div>
+              )}
 
               <div className="users-grid">
                 {allPermissions.map((perm, idx) => {
@@ -4639,6 +4700,10 @@ export default function Home() {
                         <div className="user-info">
                           <span className="user-label">Usuario:</span>
                           <span className="user-card-email">{perm.email}</span>
+                          {/* Badge de nivel */}
+                          <span className={`user-level-badge level-${perm.level || 1}`}>
+                            {perm.level === 3 ? '👑 Admin' : perm.level === 2 ? '👁️ Supervisor' : '👤 Usuario'}
+                          </span>
                         </div>
                         {perm.assignedSheet && (
                           <div className="assigned-sheet-badge">
@@ -4671,15 +4736,18 @@ export default function Home() {
                         </span>
                       </div>
 
-                      <button 
-                        className="btn-assign"
-                        onClick={() => {
-                          setEditingPermission(perm)
-                          setNewPermIds(perm.allowedIds.join(', '))
-                        }}
-                      >
-                        Asignar IDs Permitidos
-                      </button>
+                      {/* Botón Asignar IDs - Solo visible para admins (no supervisores) */}
+                      {sheetData?.permissions?.role === 'admin' && (
+                        <button 
+                          className="btn-assign"
+                          onClick={() => {
+                            setEditingPermission(perm)
+                            setNewPermIds(perm.allowedIds.join(', '))
+                          }}
+                        >
+                          Asignar IDs Permitidos
+                        </button>
+                      )}
 
                       <div className="ids-section">
                         <span className="ids-label">IDs asignados:</span>
@@ -4969,9 +5037,18 @@ export default function Home() {
             <div className="modal-body">
               <p className="modal-user-email">{editingPermission.email}</p>
               
+              {/* Mostrar nivel actual (solo lectura - se edita desde la hoja de Sheets) */}
+              <div className="user-level-display">
+                <span className="level-label">Nivel actual:</span>
+                <span className={`user-level-badge level-${editingPermission.level || 1}`}>
+                  {editingPermission.level === 3 ? '👑 Admin (Nivel 3)' : editingPermission.level === 2 ? '👁️ Supervisor (Nivel 2)' : '👤 Usuario (Nivel 1)'}
+                </span>
+                <p className="level-edit-hint">ℹ️ Para cambiar el nivel, editar columna "Nivel" en la hoja Permisos de Google Sheets</p>
+              </div>
+              
               {/* Selector de modo de asignación */}
               <div className="assignment-mode-selector">
-                <label>Modo de asignación:</label>
+                <label>Modo de asignación de PDV:</label>
                 <div className="assignment-mode-buttons">
                   <button
                     type="button"
@@ -5060,12 +5137,12 @@ export default function Home() {
                 onClick={async () => {
                   if (assignmentMode === 'ids') {
                     const ids = newPermIds.split(',').map(id => id.trim()).filter(id => id)
-                    handleSavePermissions(editingPermission.email, ids, '') // Sin hoja asignada
+                    handleSavePermissions(editingPermission.email, ids, '') // Sin hoja asignada, nivel se preserva
                   } else if (assignmentMode === 'sheet' && selectedSheet) {
                     // Cargar IDs de la hoja seleccionada y guardar la hoja asignada
                     const sheetIds = await loadSheetIds(selectedSheet)
                     if (sheetIds.length > 0) {
-                      handleSavePermissions(editingPermission.email, sheetIds, selectedSheet) // Con hoja asignada
+                      handleSavePermissions(editingPermission.email, sheetIds, selectedSheet) // Con hoja asignada, nivel se preserva
                     } else {
                       alert('No se encontraron IDs en la hoja seleccionada')
                       return
@@ -5130,8 +5207,11 @@ export default function Home() {
           })()}
           <div className="user-badge">
             <span className="user-email">{userEmail}</span>
-            {sheetData?.permissions?.isAdmin && (
+            {sheetData?.permissions?.role === 'admin' && (
               <span className="admin-badge">Admin</span>
+            )}
+            {sheetData?.permissions?.role === 'supervisor' && (
+              <span className="admin-badge supervisor-badge">Supervisor</span>
             )}
           </div>
           <button className="btn-secondary" onClick={handleSignoutClick}>
@@ -5197,9 +5277,12 @@ export default function Home() {
                   disabled={loadingData}
                 >
                   <option value="Todos">📊 Todos</option>
-                  {availableSheets.map((sheet, idx) => (
-                    <option key={idx} value={sheet}>{sheet}</option>
-                  ))}
+                  {availableSheets
+                    // Ocultar hoja "test" para supervisores (solo admins pueden verla)
+                    .filter(sheet => sheetData?.permissions?.role === 'admin' || sheet.toLowerCase() !== 'test')
+                    .map((sheet, idx) => (
+                      <option key={idx} value={sheet}>{sheet}</option>
+                    ))}
                 </select>
               </div>
             )}
@@ -5217,6 +5300,34 @@ export default function Home() {
             >
               {loadingData ? 'Cargando...' : 'Recargar Datos'}
             </button>
+            {/* Selector rápido de hojas por usuario - Para supervisores y admins */}
+            {sheetData?.permissions?.isAdmin && allPermissions.filter(p => p.assignedSheet).length > 0 && (
+              <div className="quick-user-sheet-selector">
+                <select
+                  value={adminSelectedSheet || ''}
+                  onChange={(e) => {
+                    setAdminSelectedSheet(e.target.value)
+                    setCurrentPage(1)
+                    if (accessToken) {
+                      loadSheetData(accessToken, e.target.value)
+                    }
+                  }}
+                  className="quick-sheet-select"
+                  disabled={loadingData}
+                >
+                  <option value="Todos">📊 Todos los PDV</option>
+                  {allPermissions
+                    .filter(p => p.assignedSheet)
+                    // Ocultar usuarios con hoja "test" para supervisores (solo admins pueden verlos)
+                    .filter(p => sheetData?.permissions?.role === 'admin' || p.assignedSheet?.toLowerCase() !== 'test')
+                    .map((perm, idx) => (
+                      <option key={idx} value={perm.assignedSheet}>
+                        👤 {perm.email.split('@')[0]} → {perm.assignedSheet}
+                      </option>
+                    ))}
+                </select>
+              </div>
+            )}
             {/* Botón Descargar Reporte - Solo visible para admins */}
             {sheetData?.permissions?.isAdmin && (
             <button 

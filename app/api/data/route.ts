@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { validateGoogleToken, getAccessTokenFromRequest } from '@/app/lib/auth'
+import { validateGoogleToken, getAccessTokenFromRequest, getUserRole, type UserRole } from '@/app/lib/auth'
 import { getAllData, getUserPermissions, getAllDataCombined } from '@/app/lib/sheets'
 
 // Forzar renderizado dinámico (usa headers)
@@ -29,13 +29,29 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Si es admin, obtener todos los datos (puede ser de una hoja específica)
-    if (userInfo.isAdmin) {
-      // Obtener parámetro de hoja de la URL (para admins)
+    // Obtener permisos y nivel del usuario desde la hoja de permisos
+    const userPermissions = await getUserPermissions(accessToken, userInfo.email)
+    const { allowedIds, assignedSheet, level } = userPermissions
+    
+    // Determinar el rol basado en el nivel (super admins siempre son admin)
+    const role: UserRole = getUserRole(userInfo.email, level)
+    const isAdmin = role === 'admin' || role === 'supervisor'
+    
+    console.log(`Usuario: ${userInfo.email}, Nivel: ${level}, Rol: ${role}`)
+
+    // Si es admin o supervisor, obtener todos los datos (puede ser de una hoja específica)
+    if (isAdmin) {
+      // Obtener parámetro de hoja de la URL (para admins/supervisores)
       const { searchParams } = new URL(request.url)
-      const requestedSheet = searchParams.get('sheet') || ''
+      let requestedSheet = searchParams.get('sheet') || ''
       
-      console.log('Cargando datos en /api/data (Admin)')
+      // Supervisores NO pueden acceder a la hoja "test" - redirigir a "Todos"
+      if (role === 'supervisor' && requestedSheet.toLowerCase() === 'test') {
+        console.log('Supervisor intentó acceder a hoja "test" - redirigiendo a Todos')
+        requestedSheet = 'Todos'
+      }
+      
+      console.log(`Cargando datos en /api/data (${role === 'admin' ? 'Admin' : 'Supervisor'})`)
       console.log('Hoja solicitada:', requestedSheet || 'principal')
       
       // Si se pide "Todos", obtener datos combinados de todas las hojas
@@ -52,7 +68,7 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({
           headers: [],
           data: [],
-          permissions: { allowedIds: [], isAdmin: true, assignedSheet: '', currentSheet: requestedSheet },
+          permissions: { allowedIds: [], isAdmin: true, role, level, assignedSheet: '', currentSheet: requestedSheet },
         })
       }
 
@@ -62,14 +78,11 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({
         headers,
         data: dataRows,
-        permissions: { allowedIds: [], isAdmin: true, assignedSheet: '', currentSheet: requestedSheet },
+        permissions: { allowedIds: [], isAdmin: true, role, level, assignedSheet: '', currentSheet: requestedSheet },
       })
     }
 
-    // Si no es admin, obtener permisos y hoja asignada
-    const userPermissions = await getUserPermissions(accessToken, userInfo.email)
-    const { allowedIds, assignedSheet } = userPermissions
-    
+    // Usuario normal (nivel 1)
     // Obtener parámetro de hoja de la URL (para usuarios comunes)
     const { searchParams } = new URL(request.url)
     const requestedSheet = searchParams.get('sheet') || ''
@@ -103,7 +116,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({
         headers: [],
         data: [],
-        permissions: { allowedIds, isAdmin: false, assignedSheet, currentSheet },
+        permissions: { allowedIds, isAdmin: false, role, level, assignedSheet, currentSheet },
       })
     }
 
@@ -115,7 +128,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({
         headers,
         data: dataRows,
-        permissions: { allowedIds, isAdmin: false, assignedSheet, currentSheet },
+        permissions: { allowedIds, isAdmin: false, role, level, assignedSheet, currentSheet },
       })
     }
     
@@ -124,7 +137,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({
         headers,
         data: [],
-        permissions: { allowedIds: [], isAdmin: false, assignedSheet: '' },
+        permissions: { allowedIds: [], isAdmin: false, role, level, assignedSheet: '' },
       })
     }
 
@@ -152,6 +165,8 @@ export async function GET(request: NextRequest) {
       permissions: {
         allowedIds,
         isAdmin: false,
+        role,
+        level,
         assignedSheet: '',
       },
     })
@@ -163,4 +178,3 @@ export async function GET(request: NextRequest) {
     )
   }
 }
-

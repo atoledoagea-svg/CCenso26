@@ -565,6 +565,28 @@ body {
   text-transform: uppercase;
 }
 
+.supervisor-badge {
+  background: #6366f1; /* Indigo para diferenciar del admin */
+}
+
+/* Mensaje de solo lectura para supervisores */
+.supervisor-notice {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1rem;
+  background: #eef2ff;
+  border: 1px solid #c7d2fe;
+  border-radius: 8px;
+  color: #4338ca;
+  font-size: 0.9rem;
+  margin-bottom: 1rem;
+}
+
+.supervisor-notice .notice-icon {
+  font-size: 1.2rem;
+}
+
 .btn-secondary {
   padding: 0.6rem 1.2rem;
   background: var(--white);
@@ -2010,6 +2032,90 @@ body {
   color: var(--gray-500);
 }
 
+/* Hojas asignadas a usuarios (para supervisores) */
+.sidebar-assigned-sheets {
+  margin: 1.25rem 0;
+  padding-top: 1rem;
+  border-top: 1px solid var(--gray-200);
+}
+
+.sidebar-assigned-sheets h4 {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--gray-600);
+  margin: 0 0 0.75rem 0;
+}
+
+.assigned-sheets-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.assigned-sheet-btn {
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  border: 2px solid var(--gray-200);
+  background: var(--white);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: 'Poppins', sans-serif;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  text-align: left;
+}
+
+.assigned-sheet-btn:hover {
+  border-color: #6366F1;
+  background: #F5F3FF;
+}
+
+.assigned-sheet-btn.active {
+  background: linear-gradient(135deg, #6366F1 0%, #4F46E5 100%);
+  border-color: #6366F1;
+  color: white;
+}
+
+.assigned-sheet-btn .assigned-user-name {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--gray-700);
+  text-transform: capitalize;
+}
+
+.assigned-sheet-btn.active .assigned-user-name {
+  color: white;
+}
+
+.assigned-sheet-btn .assigned-sheet-name {
+  font-size: 0.75rem;
+  color: var(--gray-500);
+}
+
+.assigned-sheet-btn.active .assigned-sheet-name {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.assigned-sheet-btn .assigned-progress {
+  position: absolute;
+  right: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  background: #10B981;
+  color: white;
+}
+
+.assigned-sheet-btn {
+  position: relative;
+  padding-right: 3.5rem;
+}
+
 .sidebar-sheet-info .info-value {
   font-size: 0.9rem;
   font-weight: 600;
@@ -2466,6 +2572,60 @@ body {
 /* Modal Medium Size */
 .modal-content.modal-medium {
   max-width: 550px;
+}
+
+/* User Level Badges */
+.user-level-badge {
+  display: inline-block;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  margin-left: 0.5rem;
+}
+
+.user-level-badge.level-1 {
+  background: #E5E7EB;
+  color: #4B5563;
+}
+
+.user-level-badge.level-2 {
+  background: #EEF2FF;
+  color: #4338CA;
+}
+
+.user-level-badge.level-3 {
+  background: #FEF3C7;
+  color: #B45309;
+}
+
+/* User Level Display (solo lectura) */
+.user-level-display {
+  margin-bottom: 1.25rem;
+  padding: 1rem;
+  background: var(--gray-50);
+  border-radius: 8px;
+  border: 1px solid var(--gray-200);
+}
+
+.user-level-display .level-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--gray-600);
+  margin-right: 0.5rem;
+}
+
+.user-level-display .user-level-badge {
+  font-size: 0.85rem;
+  padding: 0.3rem 0.75rem;
+}
+
+.user-level-display .level-edit-hint {
+  margin-top: 0.75rem;
+  margin-bottom: 0;
+  font-size: 0.75rem;
+  color: var(--gray-500);
+  font-style: italic;
 }
 
 /* Assignment Mode Selector */

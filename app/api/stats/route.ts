@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { validateGoogleToken, getAccessTokenFromRequest } from '@/app/lib/auth'
-import { getAllSheetsData, getAvailableSheets } from '@/app/lib/sheets'
+import { validateGoogleToken, getAccessTokenFromRequest, getUserRole } from '@/app/lib/auth'
+import { getAllSheetsData, getAvailableSheets, getUserPermissions } from '@/app/lib/sheets'
 
 // Forzar renderizado dinámico (usa headers)
 export const dynamic = 'force-dynamic'
@@ -25,10 +25,14 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Solo admins pueden ver estadísticas de todas las hojas
-    if (!userInfo.isAdmin) {
+    // Obtener nivel del usuario desde la hoja de permisos
+    const userPermissions = await getUserPermissions(accessToken, userInfo.email)
+    const role = getUserRole(userInfo.email, userPermissions.level)
+
+    // Admins y supervisores pueden ver estadísticas de todas las hojas
+    if (role !== 'admin' && role !== 'supervisor') {
       return NextResponse.json(
-        { error: 'No autorizado. Solo administradores pueden ver estas estadísticas.' },
+        { error: 'No autorizado. Solo administradores y supervisores pueden ver estas estadísticas.' },
         { status: 403 }
       )
     }
@@ -50,4 +54,3 @@ export async function GET(request: NextRequest) {
     )
   }
 }
-

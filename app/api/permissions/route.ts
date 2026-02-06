@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { validateGoogleToken, getAccessTokenFromRequest } from '@/app/lib/auth'
-import { getUserPermissions, saveUserPermissions, getAllPermissions } from '@/app/lib/sheets'
+import { validateGoogleToken, getAccessTokenFromRequest, getUserRole, type UserRole } from '@/app/lib/auth'
+import { getUserPermissions, saveUserPermissions, getAllPermissions, type UserLevel } from '@/app/lib/sheets'
 
 // Forzar renderizado dinámico (usa headers)
 export const dynamic = 'force-dynamic'
 
 /**
  * GET /api/permissions
- * Obtiene los permisos del usuario actual o todos los permisos si es admin
+ * Obtiene los permisos del usuario actual o todos los permisos si es admin/supervisor
  */
 export async function GET(request: NextRequest) {
   try {
@@ -29,21 +29,29 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Si es admin, retornar todos los permisos
-    if (userInfo.isAdmin) {
+    // Obtener permisos y nivel del usuario actual
+    const currentUserPermissions = await getUserPermissions(accessToken, userInfo.email)
+    const role: UserRole = getUserRole(userInfo.email, currentUserPermissions.level)
+    const isAdmin = role === 'admin' || role === 'supervisor'
+
+    // Si es admin o supervisor, retornar todos los permisos
+    if (isAdmin) {
       const allPermissions = await getAllPermissions(accessToken)
       return NextResponse.json({
         isAdmin: true,
+        role,
+        level: currentUserPermissions.level,
         permissions: allPermissions,
       })
     }
 
-    // Si no es admin, solo retornar sus propios permisos
-    const allowedIds = await getUserPermissions(accessToken, userInfo.email)
+    // Si no es admin ni supervisor, solo retornar sus propios permisos
     return NextResponse.json({
       isAdmin: false,
+      role,
+      level: currentUserPermissions.level,
       email: userInfo.email,
-      allowedIds,
+      allowedIds: currentUserPermissions,
     })
   } catch (error: any) {
     console.error('Error en API /api/permissions GET:', error)
@@ -78,8 +86,12 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Solo admins pueden asignar permisos
-    if (!userInfo.isAdmin) {
+    // Obtener nivel del usuario actual
+    const currentUserPermissions = await getUserPermissions(accessToken, userInfo.email)
+    const role: UserRole = getUserRole(userInfo.email, currentUserPermissions.level)
+
+    // Solo admins pueden asignar permisos (supervisores NO pueden)
+    if (role !== 'admin') {
       return NextResponse.json(
         { error: 'No autorizado. Solo administradores pueden asignar permisos.' },
         { status: 403 }
@@ -108,11 +120,20 @@ export async function POST(request: NextRequest) {
     // Validar que los IDs sean strings
     const validIds = allowedIds.map(id => String(id).trim()).filter(id => id.length > 0)
 
-    // Obtener hoja asignada del body (opcional)
+    // Obtener hoja asignada y nivel del body (opcional)
     const assignedSheet = body.assignedSheet || ''
+    
+    // Validar nivel (1, 2, o 3)
+    let level: UserLevel = 1
+    if (body.level !== undefined) {
+      const parsedLevel = parseInt(String(body.level), 10)
+      if (parsedLevel === 2 || parsedLevel === 3) {
+        level = parsedLevel as UserLevel
+      }
+    }
 
-    // Guardar permisos
-    const success = await saveUserPermissions(accessToken, email, validIds, assignedSheet)
+    // Guardar permisos con nivel
+    const success = await saveUserPermissions(accessToken, email, validIds, assignedSheet, level)
 
     if (!success) {
       return NextResponse.json(
@@ -128,6 +149,7 @@ export async function POST(request: NextRequest) {
         email,
         allowedIds: validIds,
         assignedSheet,
+        level,
       },
     })
   } catch (error: any) {
@@ -138,4 +160,3 @@ export async function POST(request: NextRequest) {
     )
   }
 }
-
