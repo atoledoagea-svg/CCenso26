@@ -149,12 +149,13 @@ export async function getAllDataCombined(accessToken: string): Promise<any[][]> 
       const data = response.data.values || []
       
       if (data.length > 0) {
-        // Guardar los headers de la primera hoja
+        // Guardar los headers de la primera hoja y agregar columna HOJA
         if (headers.length === 0) {
-          headers = data[0]
+          headers = [...data[0], '__HOJA__']
         }
-        // Agregar los datos (sin headers) al combinado
-        combinedData = combinedData.concat(data.slice(1))
+        // Agregar los datos (sin headers) al combinado, incluyendo el nombre de la hoja
+        const rowsWithSheetName = data.slice(1).map(row => [...row, sheetName])
+        combinedData = combinedData.concat(rowsWithSheetName)
       }
     } catch (error) {
       console.error(`Error obteniendo datos de hoja ${sheetName}:`, error)

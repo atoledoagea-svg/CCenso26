@@ -195,6 +195,10 @@ export default function Home() {
   const [showMissingFieldsModal, setShowMissingFieldsModal] = useState(false)
   const [missingFields, setMissingFields] = useState<{name: string, index: number, hint?: string}[]>([])
   const [pendingSaveAction, setPendingSaveAction] = useState<'edit' | 'nuevoPdv' | null>(null)
+  
+  // Popup de bienvenida / mensaje importante al iniciar
+  const [showWelcomePopup, setShowWelcomePopup] = useState(false)
+  const welcomePopupShownRef = useRef(false) // Para mostrar solo una vez por sesión de login
 
   const CLIENT_ID = '549677208908-9h6q933go4ss870pbq8gd8gaae75k338.apps.googleusercontent.com'
   const API_KEY = 'AIzaSyCJUD23abF8LcZPp7e8eiK0D5IfFoRCxUc'
@@ -486,6 +490,38 @@ export default function Home() {
       return () => clearTimeout(timer)
     }
   }, [isAuthorized, accessToken, sendGpsLog])
+
+  // Efecto para mostrar popup de bienvenida después del login (solo una vez por sesión)
+  useEffect(() => {
+    if (isAuthorized && sheetData && !welcomePopupShownRef.current) {
+      // Verificar si el usuario ya marcó "no mostrar más"
+      const dontShowAgain = localStorage.getItem('hideWelcomePopup')
+      if (!dontShowAgain) {
+        // Marcar que ya mostramos el popup en esta sesión
+        welcomePopupShownRef.current = true
+        // Mostrar popup después de un breve delay para que cargue el dashboard
+        const timer = setTimeout(() => {
+          setShowWelcomePopup(true)
+        }, 500)
+        return () => clearTimeout(timer)
+      }
+    }
+  }, [isAuthorized, sheetData])
+  
+  // Resetear el ref cuando el usuario cierra sesión
+  useEffect(() => {
+    if (!isAuthorized) {
+      welcomePopupShownRef.current = false
+    }
+  }, [isAuthorized])
+
+  // Función para cerrar popup y opcionalmente no mostrarlo más
+  const handleCloseWelcomePopup = (dontShowAgain: boolean = false) => {
+    if (dontShowAgain) {
+      localStorage.setItem('hideWelcomePopup', 'true')
+    }
+    setShowWelcomePopup(false)
+  }
 
   // Función para cargar logs de GPS (solo admin)
   const loadGpsLogs = useCallback(async (filterEmail?: string) => {
@@ -2778,6 +2814,45 @@ export default function Home() {
       >
         🔄
       </button>
+
+      {/* Popup de Bienvenida / Mensaje Importante */}
+      {showWelcomePopup && (
+        <div className="modal-overlay welcome-popup-overlay" onClick={() => handleCloseWelcomePopup(false)}>
+          <div className="welcome-popup-content" onClick={e => e.stopPropagation()}>
+            <div className="welcome-popup-icon">
+              ⚠️
+            </div>
+            <div className="welcome-popup-header">
+              <h2>¡IMPORTANTE!</h2>
+            </div>
+            <div className="welcome-popup-body">
+              <p className="welcome-popup-message">
+                En caso de encontrarte con un puesto que ahora es <strong>"Café"</strong> u otro rubro diferente, 
+                por favor indicarlo en el campo <strong>Observaciones</strong> del formulario de edición 
+                o cargar la información a través de <strong>"+ Nuevo PDV"</strong>.
+              </p>
+              <div className="welcome-popup-example">
+                <span className="example-label">Ejemplo de observación:</span>
+                <span className="example-text">"El puesto ahora es una cafetería / verdulería / etc."</span>
+              </div>
+            </div>
+            <div className="welcome-popup-footer">
+              <button 
+                className="btn-dont-show-again"
+                onClick={() => handleCloseWelcomePopup(true)}
+              >
+                No mostrar de nuevo
+              </button>
+              <button 
+                className="btn-accept-welcome"
+                onClick={() => handleCloseWelcomePopup(false)}
+              >
+                ✓ Entendido
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal de Campos Obligatorios Faltantes */}
       {showMissingFieldsModal && missingFields.length > 0 && (
@@ -5720,6 +5795,27 @@ export default function Home() {
                       // Ocultar columna DISPOSITIVO en la tabla
                       const headerLower = header.toLowerCase().trim()
                       if (headerLower === 'dispositivo' || headerLower.includes('dispositivo')) return null
+                      // Ocultar columna __HOJA__ para usuarios no admin, y renombrarla para admins
+                      if (header === '__HOJA__') {
+                        if (!sheetData.permissions.isAdmin) return null
+                        return (
+                          <th 
+                            key={idx} 
+                            className={`sortable-header hoja-column ${sortColumn === idx ? 'sorted' : ''}`}
+                            onClick={() => handleColumnSort(idx)}
+                            title="Ordenar por Hoja"
+                          >
+                            <span className="header-content">
+                              📋 HOJA
+                              <span className="sort-indicator">
+                                {sortColumn === idx ? (
+                                  sortDirection === 'asc' ? ' ▲' : ' ▼'
+                                ) : ' ⇅'}
+                              </span>
+                            </span>
+                          </th>
+                        )
+                      }
                       return (
                         <th 
                           key={idx} 
@@ -5774,6 +5870,11 @@ export default function Home() {
                           // Ocultar columna DISPOSITIVO en la tabla
                           const headerLower = sheetData.headers[cellIdx]?.toLowerCase().trim() || ''
                           if (headerLower === 'dispositivo' || headerLower.includes('dispositivo')) return null
+                          // Ocultar columna __HOJA__ para usuarios no admin
+                          if (sheetData.headers[cellIdx] === '__HOJA__') {
+                            if (!sheetData.permissions.isAdmin) return null
+                            return <td key={cellIdx} className="hoja-cell">{String(cell || '')}</td>
+                          }
                           return <td key={cellIdx}>{String(cell || '')}</td>
                         })}
                       </tr>

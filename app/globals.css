@@ -1219,6 +1219,31 @@ body {
   font-weight: 700;
 }
 
+/* Columna HOJA (solo admins) */
+.data-table th.hoja-column {
+  background: linear-gradient(135deg, #EDE9FE 0%, #DDD6FE 100%);
+  color: #5B21B6;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.data-table th.hoja-column:hover {
+  background: linear-gradient(135deg, #DDD6FE 0%, #C4B5FD 100%);
+}
+
+.data-table td.hoja-cell {
+  background: linear-gradient(135deg, #F5F3FF 0%, #EDE9FE 100%);
+  color: #6D28D9;
+  font-weight: 600;
+  font-size: 0.85rem;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.data-table tbody tr:hover td.hoja-cell {
+  background: linear-gradient(135deg, #EDE9FE 0%, #DDD6FE 100%);
+}
+
 .data-table tbody tr:hover {
   background: var(--gray-50);
 }
@@ -1574,6 +1599,181 @@ body {
   max-width: 450px;
   border-radius: 16px;
   z-index: 1101;
+}
+
+/* ==================== WELCOME POPUP STYLES ==================== */
+
+.welcome-popup-overlay {
+  z-index: 1200;
+  background: rgba(0, 0, 0, 0.75);
+}
+
+.welcome-popup-content {
+  background: var(--white);
+  border-radius: 24px;
+  width: 100%;
+  max-width: 420px;
+  overflow: hidden;
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.35);
+  animation: welcomePopupIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  text-align: center;
+}
+
+@keyframes welcomePopupIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.8) translateY(20px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.welcome-popup-icon {
+  font-size: 4rem;
+  padding: 1.5rem 0 0.5rem;
+  background: linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%);
+}
+
+.welcome-popup-header {
+  padding: 1rem 1.5rem;
+  background: linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%);
+  border-bottom: 3px solid #F59E0B;
+}
+
+.welcome-popup-header h2 {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #92400E;
+  letter-spacing: 1px;
+}
+
+.welcome-popup-body {
+  padding: 1.5rem 2rem;
+}
+
+.welcome-popup-message {
+  font-size: 1rem;
+  color: var(--gray-700);
+  line-height: 1.6;
+  margin: 0 0 1.25rem 0;
+}
+
+.welcome-popup-message strong {
+  color: var(--clarin-red);
+  font-weight: 600;
+}
+
+.welcome-popup-example {
+  background: linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 100%);
+  border: 2px solid #86EFAC;
+  border-radius: 12px;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.welcome-popup-example .example-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #166534;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.welcome-popup-example .example-text {
+  font-size: 0.9rem;
+  color: #15803D;
+  font-style: italic;
+}
+
+.welcome-popup-footer {
+  display: flex;
+  gap: 0.75rem;
+  padding: 1.25rem 1.5rem;
+  background: var(--gray-50);
+  border-top: 1px solid var(--gray-200);
+}
+
+.btn-dont-show-again {
+  flex: 1;
+  padding: 0.85rem 1rem;
+  background: var(--white);
+  border: 2px solid var(--gray-300);
+  border-radius: 10px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--gray-600);
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: 'Poppins', sans-serif;
+}
+
+.btn-dont-show-again:hover {
+  border-color: var(--gray-400);
+  background: var(--gray-100);
+}
+
+.btn-accept-welcome {
+  flex: 1.5;
+  padding: 0.85rem 1.5rem;
+  background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+  border: none;
+  border-radius: 10px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: white;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: 'Poppins', sans-serif;
+  box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
+}
+
+.btn-accept-welcome:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4);
+}
+
+.btn-accept-welcome:active {
+  transform: translateY(0);
+}
+
+/* Welcome popup responsive */
+@media (max-width: 480px) {
+  .welcome-popup-content {
+    max-width: 92%;
+    margin: 1rem;
+    border-radius: 20px;
+  }
+  
+  .welcome-popup-icon {
+    font-size: 3rem;
+  }
+  
+  .welcome-popup-header h2 {
+    font-size: 1.25rem;
+  }
+  
+  .welcome-popup-body {
+    padding: 1.25rem 1.5rem;
+  }
+  
+  .welcome-popup-message {
+    font-size: 0.95rem;
+  }
+  
+  .welcome-popup-footer {
+    flex-direction: column;
+  }
+  
+  .btn-dont-show-again,
+  .btn-accept-welcome {
+    flex: none;
+    width: 100%;
+  }
 }
 
 .modal-header-warning {
