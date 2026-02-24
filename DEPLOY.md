@@ -135,6 +135,26 @@ Las credenciales ya están en el código. Si necesitas cambiarlas:
 - Verifica que estás usando Next.js 14+ (App Router)
 - Asegúrate de que las rutas están en `app/api/`
 
+### Error interno del servidor (después de iniciar sesión)
+Aparece en la app al cargar los datos. Causas habituales:
+
+1. **Google Sheet sin acceso para el usuario**
+   - El spreadsheet debe estar **compartido** con el correo del usuario que inicia sesión (o con un grupo que lo incluya).
+   - En la hoja del documento, botón "Compartir" → añade el correo con al menos acceso "Lector".
+
+2. **Usuario no está en la hoja "Permisos"**
+   - Debe existir la hoja llamada **Permisos** con columnas: correo (A), IDs (B), Hoja asignada (C), Nivel (D).
+   - El correo del usuario debe figurar en la columna A.
+
+3. **API de Google Sheets no habilitada**
+   - En [Google Cloud Console](https://console.cloud.google.com) → APIs & Services → Library → busca "Google Sheets API" → Enable.
+   - El mismo proyecto debe tener el OAuth 2.0 Client ID que usas en la app (orígenes y redirect URIs con tu dominio Vercel).
+
+4. **Ver el error real en Vercel**
+   - Vercel → tu proyecto → Deployments → último deployment → "Functions" o "Logs".
+   - Busca la llamada a `/api/data` y el mensaje que aparece después de "Error en API /api/data:".
+   - En el navegador (F12 → Consola), al reproducir el error verás también el detalle devuelto por la API.
+
 ---
 
 ## Recomendación Final

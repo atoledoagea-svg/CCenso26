@@ -971,6 +971,22 @@ body {
   margin-bottom: 1.5rem;
 }
 
+.error-message p {
+  margin: 0 0 1rem 0;
+}
+
+.error-message .error-signout-btn {
+  margin-top: 0;
+  background: #DC2626;
+  color: white;
+  border-color: #B91C1C;
+}
+
+.error-message .error-signout-btn:hover {
+  background: #B91C1C;
+  color: white;
+}
+
 .permissions-panel {
   background: var(--white);
   border-radius: 12px;

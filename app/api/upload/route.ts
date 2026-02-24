@@ -68,27 +68,27 @@ export async function POST(request: NextRequest) {
 
     const imgbbData = await imgbbResponse.json()
 
-    if (!imgbbData.success) {
-      console.error('ImgBB no exitoso:', imgbbData)
+    if (!imgbbData?.success || !imgbbData?.data?.url) {
+      console.error('ImgBB no exitoso o sin URL:', imgbbData)
       return NextResponse.json(
-        { error: 'Error en la respuesta de ImgBB' },
+        { error: 'Error en la respuesta del servicio de imágenes' },
         { status: 500 }
       )
     }
 
-    // Devolver la URL de la imagen
+    const data = imgbbData.data
     return NextResponse.json({
       success: true,
-      imageUrl: imgbbData.data.url,
-      displayUrl: imgbbData.data.display_url,
-      deleteUrl: imgbbData.data.delete_url,
-      thumbnail: imgbbData.data.thumb?.url || imgbbData.data.url
+      imageUrl: data.url,
+      displayUrl: data.display_url ?? data.url,
+      deleteUrl: data.delete_url ?? '',
+      thumbnail: data.thumb?.url ?? data.url,
     })
 
   } catch (error: any) {
     console.error('Error en API /api/upload:', error)
     return NextResponse.json(
-      { error: error.message || 'Error al procesar la imagen' },
+      { error: 'Error al procesar la imagen', details: error?.message },
       { status: 500 }
     )
   }

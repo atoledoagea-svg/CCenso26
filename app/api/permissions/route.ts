@@ -51,7 +51,8 @@ export async function GET(request: NextRequest) {
       role,
       level: currentUserPermissions.level,
       email: userInfo.email,
-      allowedIds: currentUserPermissions,
+      allowedIds: currentUserPermissions.allowedIds,
+      assignedSheet: currentUserPermissions.assignedSheet,
     })
   } catch (error: any) {
     console.error('Error en API /api/permissions GET:', error)
@@ -99,7 +100,15 @@ export async function POST(request: NextRequest) {
     }
 
     // Obtener datos del body
-    const body = await request.json()
+    let body: { email?: string; allowedIds?: unknown; assignedSheet?: string; level?: number }
+    try {
+      body = await request.json()
+    } catch {
+      return NextResponse.json(
+        { error: 'Cuerpo JSON inválido' },
+        { status: 400 }
+      )
+    }
     const { email, allowedIds } = body
 
     // Validar datos

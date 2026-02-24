@@ -98,7 +98,15 @@ export async function POST(request: NextRequest) {
     }
 
     // Obtener nombre de la hoja del body
-    const body = await request.json()
+    let body: { sheetName?: string }
+    try {
+      body = await request.json()
+    } catch {
+      return NextResponse.json(
+        { error: 'Cuerpo JSON inválido' },
+        { status: 400 }
+      )
+    }
     const { sheetName } = body
 
     if (!sheetName || typeof sheetName !== 'string') {

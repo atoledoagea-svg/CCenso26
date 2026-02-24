@@ -33,7 +33,15 @@ export async function POST(request: NextRequest) {
     }
 
     // Obtener datos del body
-    const body = await request.json()
+    let body: { latitude?: number; longitude?: number; userAgent?: string; isMobile?: boolean; reason?: string }
+    try {
+      body = await request.json()
+    } catch {
+      return NextResponse.json(
+        { error: 'Cuerpo JSON inválido' },
+        { status: 400 }
+      )
+    }
     const { latitude, longitude, userAgent, isMobile, reason } = body
 
     if (!latitude || !longitude) {
@@ -102,7 +110,8 @@ export async function POST(request: NextRequest) {
       'foreground': 'Volvió a la app',
       'focus': 'Foco en ventana'
     }
-    const evento = eventoMap[reason] || reason || 'Desconocido'
+    const reasonKey = reason ?? ''
+    const evento = eventoMap[reasonKey] || reason || 'Desconocido'
     
     const logRow = [
       fecha,
@@ -134,7 +143,7 @@ export async function POST(request: NextRequest) {
   } catch (error: any) {
     console.error('Error en API /api/log-gps:', error)
     return NextResponse.json(
-      { error: 'Error interno del servidor' },
+      { error: 'Error interno del servidor', details: error?.message },
       { status: 500 }
     )
   }

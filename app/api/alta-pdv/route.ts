@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
       // Encontrar el ID más alto
       let maxId = STARTING_ID
       for (let i = 1; i < rows.length; i++) { // Saltar header
-        const id = parseInt(String(rows[i][0] || '0'), 10)
+        const id = parseInt(String(rows[i]?.[0] ?? '0'), 10)
         if (!isNaN(id) && id > maxId) {
           maxId = id
         }
@@ -97,7 +97,15 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const body = await request.json()
+    let body: { pdvData?: Record<string, unknown> }
+    try {
+      body = await request.json()
+    } catch {
+      return NextResponse.json(
+        { error: 'Cuerpo JSON inválido' },
+        { status: 400 }
+      )
+    }
     const { pdvData } = body
 
     if (!pdvData) {
@@ -130,7 +138,7 @@ export async function POST(request: NextRequest) {
     const rows = idsResponse.data.values || []
     let maxId = STARTING_ID
     for (let i = 1; i < rows.length; i++) {
-      const id = parseInt(String(rows[i][0] || '0'), 10)
+      const id = parseInt(String(rows[i]?.[0] ?? '0'), 10)
       if (!isNaN(id) && id > maxId) {
         maxId = id
       }

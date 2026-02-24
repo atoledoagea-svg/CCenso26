@@ -32,7 +32,15 @@ export async function POST(request: NextRequest) {
     }
 
     // Obtener datos del body
-    const body = await request.json()
+    let body: { rowId?: string; values?: unknown[]; sheetName?: string }
+    try {
+      body = await request.json()
+    } catch {
+      return NextResponse.json(
+        { error: 'Cuerpo JSON inválido' },
+        { status: 400 }
+      )
+    }
     const { rowId, values, sheetName: requestedSheetName } = body
 
     if (!rowId || !values || !Array.isArray(values)) {

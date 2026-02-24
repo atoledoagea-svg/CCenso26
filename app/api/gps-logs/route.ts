@@ -115,7 +115,7 @@ export async function GET(request: NextRequest) {
   } catch (error: any) {
     console.error('Error en API /api/gps-logs:', error)
     return NextResponse.json(
-      { error: 'Error interno del servidor' },
+      { error: 'Error interno del servidor', details: error?.message },
       { status: 500 }
     )
   }

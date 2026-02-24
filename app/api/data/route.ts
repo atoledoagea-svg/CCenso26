@@ -72,7 +72,8 @@ export async function GET(request: NextRequest) {
         })
       }
 
-      const headers = allData[0].map((cell: any) => String(cell || ''))
+      const firstRow = allData[0]
+      const headers = (Array.isArray(firstRow) ? firstRow : []).map((cell: any) => String(cell || ''))
       const dataRows = allData.slice(1)
 
       return NextResponse.json({
@@ -120,7 +121,8 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    const headers = allData[0].map((cell: any) => String(cell || ''))
+    const firstRowUser = allData[0]
+    const headers = (Array.isArray(firstRowUser) ? firstRowUser : []).map((cell: any) => String(cell || ''))
     const dataRows = allData.slice(1)
 
     // Si está viendo ALTA PDV o su hoja asignada, mostrar todos los datos (sin filtrar por IDs)
@@ -171,9 +173,29 @@ export async function GET(request: NextRequest) {
       },
     })
   } catch (error: any) {
-    console.error('Error en API /api/data:', error)
+    const message = error?.message || String(error)
+    const code = error?.code || error?.response?.status
+    console.error('Error en API /api/data:', message, 'code:', code, error)
+
+    // Mensajes útiles para errores habituales de Google (Vercel/producción)
+    if (code === 403 || (typeof message === 'string' && (message.includes('Permission') || message.includes('Access Not Configured') || message.includes('does not have permission')))) {
+      return NextResponse.json(
+        {
+          error: 'No tienes acceso al documento. Verifica que el Google Sheet esté compartido con tu correo y que tu usuario figure en la hoja "Permisos".',
+          details: message,
+        },
+        { status: 403 }
+      )
+    }
+    if (code === 404 || (typeof message === 'string' && message.toLowerCase().includes('not found'))) {
+      return NextResponse.json(
+        { error: 'Documento o hoja no encontrada. Revisa que el ID del spreadsheet sea correcto.', details: message },
+        { status: 404 }
+      )
+    }
+
     return NextResponse.json(
-      { error: 'Error interno del servidor', details: error.message },
+      { error: 'Error interno del servidor', details: message },
       { status: 500 }
     )
   }

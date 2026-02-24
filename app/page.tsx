@@ -260,8 +260,11 @@ export default function Home() {
       })
       
       if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Error cargando datos')
+        const errorData = await response.json().catch(() => ({}))
+        const msg = errorData.error || 'Error cargando datos'
+        const detail = errorData.details ? ` (${errorData.details})` : ''
+        if (errorData.details) console.error('API /api/data:', errorData.details)
+        throw new Error(msg + detail)
       }
       
       const data = await response.json()
@@ -1416,7 +1419,7 @@ export default function Home() {
       })
       
       if (!response.ok) {
-        const errorData = await response.json()
+        const errorData = await response.json().catch(() => ({}))
         throw new Error(errorData.error || 'Error guardando datos')
       }
       
@@ -1460,7 +1463,7 @@ export default function Home() {
       })
       
       if (!response.ok) {
-        const errorData = await response.json()
+        const errorData = await response.json().catch(() => ({}))
         throw new Error(errorData.error || 'Error guardando permisos')
       }
       
@@ -2579,7 +2582,7 @@ export default function Home() {
       })
 
       if (!response.ok) {
-        const errorData = await response.json()
+        const errorData = await response.json().catch(() => ({}))
         throw new Error(errorData.error || 'Error al guardar el PDV')
       }
 
@@ -5756,7 +5759,21 @@ export default function Home() {
         {/* Error Message */}
         {error && (
           <div className="error-message">
-            {error}
+            <p>
+              {error.includes('Error interno del servidor')
+                ? 'Error interno del servidor. Cierre la web y vuelva a ingresar.'
+                : error}
+            </p>
+            <button
+              type="button"
+              className="btn-secondary error-signout-btn"
+              onClick={() => {
+                setError(null)
+                handleSignoutClick()
+              }}
+            >
+              Cerrar sesión
+            </button>
           </div>
         )}
 
