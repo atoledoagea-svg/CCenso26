@@ -2,7 +2,12 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react'
 import Image from 'next/image'
+import Link from 'next/link'
 import dynamic from 'next/dynamic'
+import { useToast } from './components/Toast'
+import { usePermissions, type Permission, type UserLevel } from './hooks/usePermissions'
+import { UserCard } from './components/UserCard'
+import { LoginScreen } from './components/LoginScreen'
 
 // Importar MapPicker dinámicamente (Leaflet necesita window)
 const MapPicker = dynamic(() => import('./components/MapPicker'), { 
@@ -25,7 +30,6 @@ declare global {
 
 // Tipos de roles de usuario
 type UserRole = 'user' | 'supervisor' | 'admin'
-type UserLevel = 1 | 2 | 3
 
 interface SheetData {
   headers: string[]
@@ -40,14 +44,8 @@ interface SheetData {
   }
 }
 
-interface Permission {
-  email: string
-  allowedIds: string[]
-  assignedSheet?: string
-  level?: UserLevel // 1=Usuario, 2=Supervisor, 3=Admin
-}
-
 export default function Home() {
+  const toast = useToast()
   const [tokenClient, setTokenClient] = useState<any>(null)
   const [gapiInited, setGapiInited] = useState(false)
   const [gisInited, setGisInited] = useState(false)
@@ -56,6 +54,8 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false)
   const [userEmail, setUserEmail] = useState<string | null>(null)
   const [accessToken, setAccessToken] = useState<string | null>(null)
+  const [sessionExpired, setSessionExpired] = useState(false)
+  const [sessionChecked, setSessionChecked] = useState(false)
   
   // Tips de uso para mostrar durante la carga
   const loadingTips = [
@@ -99,11 +99,12 @@ export default function Home() {
   
   // Admin panel states
   const [showPermissionsPanel, setShowPermissionsPanel] = useState(false)
-  const [allPermissions, setAllPermissions] = useState<Permission[]>([])
   const [editingPermission, setEditingPermission] = useState<Permission | null>(null)
   const [newPermIds, setNewPermIds] = useState('')
   const [savingPermissions, setSavingPermissions] = useState(false)
   const [newUserEmail, setNewUserEmail] = useState('')
+  const [expandedIdsIndex, setExpandedIdsIndex] = useState<number | null>(null)
+  const [userRoleFilter, setUserRoleFilter] = useState<'all' | '1' | '2' | '3'>('all') // 1=Usuario, 2=Supervisor, 3=Admin
   
   // Admin sidebar state
   const [showAdminSidebar, setShowAdminSidebar] = useState(false)
@@ -190,6 +191,7 @@ export default function Home() {
   const [nuevoPdvImagePreview, setNuevoPdvImagePreview] = useState<string | null>(null)
   const [nuevoPdvImageUrl, setNuevoPdvImageUrl] = useState<string | null>(null)
   const [uploadingNuevoPdvImage, setUploadingNuevoPdvImage] = useState(false)
+  const [nuevoPdvFieldErrors, setNuevoPdvFieldErrors] = useState<Record<string, string>>({})
   
   // Modal para campos obligatorios faltantes
   const [showMissingFieldsModal, setShowMissingFieldsModal] = useState(false)
@@ -245,6 +247,18 @@ export default function Home() {
     return () => {}
   }, [])
 
+  const handleSessionExpired = useCallback(() => {
+    if (typeof sessionStorage !== 'undefined') sessionStorage.removeItem('clarin_access_token')
+    document.cookie = 'clarin_session=; path=/; max-age=0'
+    setAccessToken(null)
+    setIsAuthorized(false)
+    setUserEmail(null)
+    setSheetData(null)
+    setPermissions([])
+    setError(null)
+    setSessionExpired(true)
+  }, [])
+
   const loadSheetData = useCallback(async (token: string, sheetName: string = '') => {
     setLoadingData(true)
     setError(null)
@@ -260,6 +274,11 @@ export default function Home() {
       })
       
       if (!response.ok) {
+        if (response.status === 401) {
+          handleSessionExpired()
+          setLoadingData(false)
+          return
+        }
         const errorData = await response.json().catch(() => ({}))
         const msg = errorData.error || 'Error cargando datos'
         const detail = errorData.details ? ` (${errorData.details})` : ''
@@ -279,26 +298,9 @@ export default function Home() {
     } finally {
       setLoadingData(false)
     }
-  }, [])
+  }, [handleSessionExpired])
 
-  const loadPermissions = async (token: string) => {
-    try {
-      const response = await fetch('/api/permissions', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      })
-      
-      if (response.ok) {
-        const data = await response.json()
-        if (data.permissions) {
-          setAllPermissions(data.permissions)
-        }
-      }
-    } catch (err) {
-      console.error('Error cargando permisos:', err)
-    }
-  }
+  const { permissions: allPermissions, loadPermissions, setPermissions } = usePermissions(accessToken, handleSessionExpired)
 
   const loadAvailableSheets = async (token: string) => {
     setLoadingSheets(true)
@@ -308,7 +310,10 @@ export default function Home() {
           'Authorization': `Bearer ${token}`
         }
       })
-      
+      if (response.status === 401) {
+        handleSessionExpired()
+        return
+      }
       if (response.ok) {
         const data = await response.json()
         if (data.sheets) {
@@ -341,7 +346,10 @@ export default function Home() {
         },
         body: JSON.stringify({ sheetName })
       })
-      
+      if (response.status === 401) {
+        handleSessionExpired()
+        return []
+      }
       if (response.ok) {
         const data = await response.json()
         return data.ids || []
@@ -356,6 +364,7 @@ export default function Home() {
 
   function handleAuthClick() {
     if (!tokenClient) return
+    if (typeof window === 'undefined' || !window.gapi?.client || !window.google?.accounts?.oauth2) return
 
     setIsLoading(true)
 
@@ -368,7 +377,11 @@ export default function Home() {
       
       const token = window.gapi.client.getToken().access_token
       setAccessToken(token)
+      if (typeof sessionStorage !== 'undefined') sessionStorage.setItem('clarin_access_token', token)
+      const secure = typeof window !== 'undefined' && window.location?.protocol === 'https:'
+      document.cookie = `clarin_session=1; path=/; max-age=86400; samesite=lax${secure ? '; secure' : ''}`
       setIsAuthorized(true)
+      setSessionExpired(false)
       setIsLoading(false)
       
       try {
@@ -392,17 +405,37 @@ export default function Home() {
   }
 
   function handleSignoutClick() {
-    const token = window.gapi.client.getToken()
-    if (token !== null) {
-      window.google.accounts.oauth2.revoke(token.access_token)
-      window.gapi.client.setToken('')
-      setIsAuthorized(false)
-      setUserEmail(null)
-      setAccessToken(null)
-      setSheetData(null)
-      setAllPermissions([])
+    if (typeof window !== 'undefined' && window.gapi?.client?.getToken && window.google?.accounts?.oauth2?.revoke) {
+      const token = window.gapi.client.getToken()
+      if (token !== null) {
+        try { window.google.accounts.oauth2.revoke(token.access_token) } catch { /* ignore */ }
+        window.gapi.client.setToken('')
+      }
     }
+    handleSessionExpired()
   }
+
+  // Restaurar sesión desde sessionStorage al volver desde /mapa u otra pestaña
+  useEffect(() => {
+    const storedToken = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('clarin_access_token') : null
+    if (!storedToken) {
+      setSessionChecked(true)
+      return
+    }
+    setAccessToken(storedToken)
+    setIsAuthorized(true)
+    setSessionChecked(true)
+    fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+      headers: { Authorization: `Bearer ${storedToken}` }
+    })
+      .then(res => {
+        if (!res.ok) throw new Error('Token inválido')
+        return res.json()
+      })
+      .then(data => { if (data?.email) setUserEmail(data.email) })
+      .catch(() => { handleSessionExpired() })
+    loadSheetData(storedToken)
+  }, [handleSessionExpired, loadSheetData])
 
   // Referencia para controlar el último envío de GPS (evitar spam)
   const lastGpsLogTime = useRef<number>(0)
@@ -424,14 +457,12 @@ export default function Home() {
     // Verificar cooldown (no enviar más de 1 log cada 5 minutos)
     const now = Date.now()
     if (now - lastGpsLogTime.current < GPS_LOG_COOLDOWN) {
-      console.log('GPS Log: Cooldown activo, esperando...')
       return
     }
 
     try {
       // Obtener ubicación
       if (!navigator.geolocation) {
-        console.log('GPS Log: Geolocalización no soportada')
         return
       }
 
@@ -454,7 +485,6 @@ export default function Home() {
             })
 
             if (response.ok) {
-              console.log(`GPS Log: Ubicación guardada (${reason})`)
               lastGpsLogTime.current = Date.now()
               // Guardar ubicación en cache para reutilizar
               cachedMobileLocation.current = {
@@ -462,14 +492,12 @@ export default function Home() {
                 longitude: position.coords.longitude,
                 timestamp: Date.now()
               }
-              console.log('GPS Log: Ubicación cacheada para reutilizar')
             }
           } catch (error) {
             console.error('GPS Log: Error enviando datos', error)
           }
         },
         (error) => {
-          console.log('GPS Log: No se pudo obtener ubicación -', error.message)
         },
         {
           enableHighAccuracy: false,
@@ -541,7 +569,10 @@ export default function Home() {
           'Authorization': `Bearer ${accessToken}`
         }
       })
-      
+      if (response.status === 401) {
+        handleSessionExpired()
+        return
+      }
       if (response.ok) {
         const data = await response.json()
         setGpsLogs(data.logs || [])
@@ -552,7 +583,7 @@ export default function Home() {
     } finally {
       setLoadingGpsLogs(false)
     }
-  }, [accessToken])
+  }, [accessToken, handleSessionExpired])
 
   // Efecto para detectar cuando la app vuelve de segundo plano
   useEffect(() => {
@@ -561,7 +592,6 @@ export default function Home() {
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
         // La app volvió al primer plano
-        console.log('GPS Log: App volvió al primer plano')
         sendGpsLog(accessToken, 'foreground')
       }
     }
@@ -583,9 +613,9 @@ export default function Home() {
   }, [isAuthorized, accessToken, sendGpsLog])
 
   const handleEditRow = (rowIndex: number) => {
-    if (sheetData) {
-      // Copiar los datos de la fila y asegurar que tenga la misma longitud que los headers
-      const rowData = [...sheetData.data[rowIndex]]
+    if (!sheetData?.data?.length || !sheetData?.headers?.length) return
+    if (rowIndex < 0 || rowIndex >= sheetData.data.length) return
+    const rowData = [...sheetData.data[rowIndex]]
       while (rowData.length < sheetData.headers.length) {
         rowData.push('')
       }
@@ -619,7 +649,6 @@ export default function Home() {
         setUploadedImageUrl(null)
         setImagePreview(null)
       }
-    }
   }
 
   const handleCancelEdit = () => {
@@ -684,12 +713,6 @@ export default function Home() {
         }
       }
     }
-    
-    // DEBUG - mostrar qué encuentra
-    console.log('=== DEBUG getAutoFillIndexes ===')
-    console.log('Headers:', headers.join(' | '))
-    console.log('Fecha index:', fechaIndex, fechaIndex !== -1 ? `"${headers[fechaIndex]}"` : 'NO ENCONTRADO')
-    console.log('Relevador index:', relevadorIndex, relevadorIndex !== -1 ? `"${headers[relevadorIndex]}"` : 'NO ENCONTRADO')
     
     return { fechaIndex, relevadorIndex }
   }
@@ -919,14 +942,16 @@ export default function Home() {
       })
 
       if (!response.ok) {
+        if (response.status === 401) {
+          handleSessionExpired()
+          return
+        }
         let errorMessage = 'Error al subir imagen'
         try {
           const errorData = await response.json()
           errorMessage = errorData.error || errorMessage
         } catch {
-          if (response.status === 401) {
-            errorMessage = 'Sesión expirada. Cierra sesión y vuelve a ingresar.'
-          } else if (response.status === 413) {
+          if (response.status === 413) {
             errorMessage = 'La imagen es demasiado grande. Máximo 32MB.'
           } else if (response.status >= 500) {
             errorMessage = 'Error del servidor. Intenta de nuevo en unos minutos.'
@@ -966,19 +991,18 @@ export default function Home() {
       }
 
       // Mensaje de éxito
-      let successMessage = '✅ Imagen subida correctamente'
+      let successMessage = 'Imagen subida correctamente'
       if (location) {
-        successMessage = `✅ Imagen subida correctamente\n📍 Ubicación actualizada: ${location.latitude.toFixed(6)}, ${location.longitude.toFixed(6)}`
+        successMessage = `Imagen subida correctamente. Ubicación: ${location.latitude.toFixed(6)}, ${location.longitude.toFixed(6)}`
       } else if (captureLocation && !shouldCaptureLocation) {
-        successMessage = '✅ Imagen subida correctamente\n📍 Coordenadas anteriores conservadas'
+        successMessage = 'Imagen subida correctamente. Coordenadas anteriores conservadas.'
       } else if (captureLocation) {
-        successMessage = '✅ Imagen subida correctamente\n⚠️ No se pudo obtener la ubicación GPS'
+        successMessage = 'Imagen subida correctamente. No se pudo obtener la ubicación GPS.'
       }
-      
-      alert(successMessage)
+      toast.success(successMessage)
     } catch (error: any) {
       console.error('Error uploading image:', error)
-      alert('Error al subir la imagen: ' + error.message)
+      toast.error('Error al subir la imagen: ' + error.message)
       setImagePreview(null)
     } finally {
       setUploadingImage(false)
@@ -1016,6 +1040,29 @@ export default function Home() {
   const [addressSearch, setAddressSearch] = useState('')
   const [searchingAddress, setSearchingAddress] = useState(false)
   const [showLocationWarning, setShowLocationWarning] = useState(false)
+
+  // Cerrar modales con Escape (accesibilidad) — después de declarar showMapPicker, locationModalRow, etc.
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      if (showMapPicker) setShowMapPicker(false)
+      else if (locationModalRow !== null) setLocationModalRow(null)
+      else if (editingRow !== null) {
+        setEditingRow(null)
+        setEditedValues([])
+        setOriginalValues([])
+      }
+      else if (showPermissionsPanel) setShowPermissionsPanel(false)
+      else if (showStats) setShowStats(false)
+      else if (showAdminSidebar) setShowAdminSidebar(false)
+      else if (showMissingFieldsModal) setShowMissingFieldsModal(false)
+      else if (showNuevoPdvModal) setShowNuevoPdvModal(false)
+      else if (showGpsModal) setShowGpsModal(false)
+      else if (showWelcomePopup) setShowWelcomePopup(false)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [showMapPicker, locationModalRow, editingRow, showPermissionsPanel, showStats, showAdminSidebar, showMissingFieldsModal, showNuevoPdvModal, showGpsModal, showWelcomePopup])
 
   // Función para abrir el modal de opciones de ubicación
   const handleLocationClick = (rowIndex: number) => {
@@ -1083,7 +1130,10 @@ export default function Home() {
 
   // Función para abrir el selector de mapa
   const handleOpenMapPicker = async () => {
-    if (locationModalRow === null || !sheetData) return
+    if (locationModalRow === null || !sheetData?.data?.length || !sheetData?.headers?.length) return
+    if (locationModalRow < 0 || locationModalRow >= sheetData.data.length) return
+    const row = sheetData.data[locationModalRow]
+    if (!row) return
     
     // Obtener coordenadas existentes si las hay para centrar el mapa
     const headers = sheetData.headers.map(h => h.toLowerCase().trim())
@@ -1094,8 +1144,8 @@ export default function Home() {
     let initialLng = -58.3816
     
     if (latIndex !== -1 && lngIndex !== -1) {
-      const existingLat = parseFloat(String(sheetData.data[locationModalRow][latIndex] || ''))
-      const existingLng = parseFloat(String(sheetData.data[locationModalRow][lngIndex] || ''))
+      const existingLat = parseFloat(String(row[latIndex] || ''))
+      const existingLng = parseFloat(String(row[lngIndex] || ''))
       if (!isNaN(existingLat) && !isNaN(existingLng)) {
         initialLat = existingLat
         initialLng = existingLng
@@ -1108,15 +1158,12 @@ export default function Home() {
     
     let addressSuggestion = ''
     if (domicilioIndex !== -1) {
-      const domicilio = String(sheetData.data[locationModalRow][domicilioIndex] || '').trim()
+      const domicilio = String(row[domicilioIndex] || '').trim()
       if (domicilio) {
         addressSuggestion = domicilio
-        // Agregar localidad si existe para búsqueda más precisa
         if (localidadIndex !== -1) {
-          const localidad = String(sheetData.data[locationModalRow][localidadIndex] || '').trim()
-          if (localidad) {
-            addressSuggestion += `, ${localidad}`
-          }
+          const localidad = String(row[localidadIndex] || '').trim()
+          if (localidad) addressSuggestion += `, ${localidad}`
         }
       }
     }
@@ -1190,10 +1237,11 @@ export default function Home() {
       alert('⚠️ Sesión expirada.\n\nPor favor, cierra sesión y vuelve a ingresar.')
       return
     }
-    if (!sheetData) {
+    if (!sheetData?.data?.length || !sheetData?.headers?.length) {
       alert('⚠️ No hay datos cargados.\n\nRecarga la página e intenta de nuevo.')
       return
     }
+    if (rowIndex < 0 || rowIndex >= sheetData.data.length) return
 
     const headers = sheetData.headers.map(h => h.toLowerCase().trim())
     const latIndex = headers.findIndex(h => h === 'latitud' || h === 'lat')
@@ -1243,7 +1291,6 @@ export default function Home() {
       if (dispositivoIndex !== -1) {
         const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
         valuesToSave[dispositivoIndex] = isMobile ? 'Mobile' : 'PC'
-        console.log('Dispositivo guardado en ubicación:', valuesToSave[dispositivoIndex])
       }
 
       const response = await fetch('/api/update', {
@@ -1260,15 +1307,16 @@ export default function Home() {
       })
 
       if (!response.ok) {
+        if (response.status === 401) {
+          handleSessionExpired()
+          return
+        }
         let errorMessage = 'Error guardando ubicación'
         try {
           const errorData = await response.json()
           errorMessage = errorData.error || errorMessage
         } catch {
-          // Si no puede parsear JSON, usar mensaje por defecto
-          if (response.status === 401) {
-            errorMessage = 'Sesión expirada. Cierra sesión y vuelve a ingresar.'
-          } else if (response.status === 403) {
+          if (response.status === 403) {
             errorMessage = 'No tienes permiso para editar este registro.'
           } else if (response.status === 404) {
             errorMessage = 'Registro no encontrado. Recarga la página.'
@@ -1285,17 +1333,18 @@ export default function Home() {
       setSheetData({ ...sheetData, data: newData })
 
       const modeText = mode === 'manual' ? '(manual)' : '(GPS)'
-      alert(`✅ Ubicación guardada ${modeText}\n📍 ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`)
+      toast.success(`Ubicación guardada ${modeText}. ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`)
     } catch (err: any) {
       const errorMsg = err.message || 'Error desconocido'
-      alert(`❌ Error al guardar ubicación\n\n${errorMsg}`)
+      toast.error(`Error al guardar ubicación: ${errorMsg}`)
     } finally {
       setSavingLocationRow(null)
     }
   }
 
   const handleSaveRow = async (skipValidation: boolean = false) => {
-    if (!accessToken || editingRow === null || !sheetData || !userEmail) return
+    if (!accessToken || editingRow === null || !sheetData?.data?.length || !sheetData?.headers?.length || !userEmail) return
+    if (editingRow < 0 || editingRow >= sheetData.data.length) return
     
     const headers = sheetData.headers.map(h => h.toLowerCase().trim())
     
@@ -1376,9 +1425,6 @@ export default function Home() {
       if (dispositivoIndex !== -1) {
         const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
         valuesToSave[dispositivoIndex] = isMobile ? 'Mobile' : 'PC'
-        console.log('Dispositivo guardado:', valuesToSave[dispositivoIndex], 'en índice:', dispositivoIndex)
-      } else {
-        console.log('Columna DISPOSITIVO no encontrada. Headers:', headers)
       }
       
       // Agregar coordenadas GPS si fueron capturadas
@@ -1419,6 +1465,10 @@ export default function Home() {
       })
       
       if (!response.ok) {
+        if (response.status === 401) {
+          handleSessionExpired()
+          return
+        }
         const errorData = await response.json().catch(() => ({}))
         throw new Error(errorData.error || 'Error guardando datos')
       }
@@ -1437,7 +1487,7 @@ export default function Home() {
       // Resetear flag de búsqueda (no volver a la búsqueda después de guardar)
       setCameFromMobileSearch(false)
     } catch (err: any) {
-      alert('Error: ' + err.message)
+      toast.error('Error guardando datos: ' + err.message)
     } finally {
       setSaving(false)
     }
@@ -1463,6 +1513,10 @@ export default function Home() {
       })
       
       if (!response.ok) {
+        if (response.status === 401) {
+          handleSessionExpired()
+          return
+        }
         const errorData = await response.json().catch(() => ({}))
         throw new Error(errorData.error || 'Error guardando permisos')
       }
@@ -1472,10 +1526,23 @@ export default function Home() {
       setNewPermIds('')
       setNewUserEmail('')
     } catch (err: any) {
-      alert('Error: ' + err.message)
+      toast.error('Error guardando permisos: ' + err.message)
     } finally {
       setSavingPermissions(false)
     }
+  }
+
+  // Considera que el valor de celda "Relevado por" coincide con el email del usuario (varios formatos)
+  const relevadoPorMatchesUser = (cellValue: string, userEmail: string): boolean => {
+    const cell = String(cellValue || '').toLowerCase().trim()
+    const user = String(userEmail || '').toLowerCase().trim()
+    if (!cell || !user) return false
+    if (cell === user) return true
+    const userLocal = user.split('@')[0]
+    if (cell === userLocal) return true
+    if (user.startsWith(cell + '@')) return true
+    if (cell.includes('@') && cell === user) return true
+    return false
   }
 
   // Calculate stats for a user based on "Relevador por:" field
@@ -1484,38 +1551,39 @@ export default function Home() {
     
     const totalAssigned = allowedIds.length
     
-    // Find the "Relevador por:" column index
-    const headers = sheetData.headers.map(h => h.toLowerCase().trim())
-    const relevadorIndex = headers.findIndex(h => 
-      h.includes('relevador') || h.includes('relevado por') || h.includes('censado por')
+    // Find the "Relevador por:" column index (mismo criterio que getAutoFillIndexes)
+    const headers = sheetData.headers.map(h => String(h || '').toLowerCase().trim())
+    let relevadorIndex = headers.findIndex(h => 
+      h === 'relevado por:' || h === 'relevado por'
     )
+    if (relevadorIndex === -1) {
+      relevadorIndex = headers.findIndex(h => 
+        (h.startsWith('relevado') || h.startsWith('censado')) && !h.includes('correo') && !h.includes('email')
+      )
+    }
+    if (relevadorIndex === -1) {
+      relevadorIndex = headers.findIndex(h => 
+        h.includes('relevador') || h.includes('relevado por') || h.includes('censado por')
+      )
+    }
     
     if (relevadorIndex === -1) {
-      // If column not found, fallback to checking if ID exists
       const existingIds = sheetData.data.map(row => String(row[0] || '').toLowerCase())
       const relevados = allowedIds.filter(id => existingIds.includes(id.toLowerCase())).length
       return { relevados, faltantes: totalAssigned - relevados, total: totalAssigned }
     }
     
-    // Count IDs where "Relevador por:" matches the user's email
-    const userEmailLower = userEmailPerm.toLowerCase()
     const allowedIdsLower = allowedIds.map(id => id.toLowerCase())
-    
     let relevados = 0
     for (const row of sheetData.data) {
       const rowId = String(row[0] || '').toLowerCase()
-      const relevadorEmail = String(row[relevadorIndex] || '').toLowerCase().trim()
+      const relevadorCell = String(row[relevadorIndex] || '').trim()
       
-      // Check if this row's ID is in the user's allowed IDs
-      // AND if the relevador field contains the user's email
-      if (allowedIdsLower.includes(rowId) && relevadorEmail === userEmailLower) {
-        relevados++
-      }
+      if (!allowedIdsLower.includes(rowId)) continue
+      if (relevadoPorMatchesUser(relevadorCell, userEmailPerm)) relevados++
     }
     
-    const faltantes = totalAssigned - relevados
-    
-    return { relevados, faltantes, total: totalAssigned }
+    return { relevados, faltantes: totalAssigned - relevados, total: totalAssigned }
   }
 
   // Get Paquete column index
@@ -1679,7 +1747,10 @@ export default function Home() {
           'Authorization': `Bearer ${accessToken}`
         }
       })
-      
+      if (response.status === 401) {
+        handleSessionExpired()
+        return
+      }
       if (response.ok) {
         const data = await response.json()
         setAllSheetsStats(data.sheets || {})
@@ -1732,28 +1803,9 @@ export default function Home() {
     const headersLower = headersToUse.map(h => String(h).toLowerCase().trim())
     const results: { fieldName: string; data: { label: string; count: number; color: string }[] }[] = []
     
-    // DEBUG: Ver los headers disponibles
-    console.log('=== DEBUG STATS ===')
-    console.log('Hoja:', sheetName)
-    console.log('Headers:', headersLower.join(' | '))
-    console.log('Total filas de datos:', dataToAnalyze.length)
-    
-    // Encontrar índice de "Relevado por:" (usando includes como en getAutoFillIndexes)
     const relevadorIndex = headersLower.findIndex(h => 
       h.includes('relevador') || h.includes('relevado por') || h.includes('censado por')
     )
-    
-    console.log('Índice relevador encontrado:', relevadorIndex)
-    if (relevadorIndex !== -1) {
-      console.log('Nombre del campo:', headersLower[relevadorIndex])
-      // Mostrar algunos valores de ejemplo (como strings)
-      const sampleValues = dataToAnalyze.slice(0, 10).map(row => `"${String(row[relevadorIndex] || '').trim()}"`).join(', ')
-      console.log('Valores de ejemplo (10 primeras filas):', sampleValues)
-      
-      // Contar cuántos tienen valor
-      const conValor = dataToAnalyze.filter(row => String(row[relevadorIndex] || '').trim() !== '').length
-      console.log('Filas con valor en relevador:', conValor)
-    }
     
     // Filtrar solo filas relevadas
     const relevadosData = dataToAnalyze.filter(row => {
@@ -2370,6 +2422,7 @@ export default function Home() {
     })
     setNuevoPdvImagePreview(null)
     setNuevoPdvImageUrl(null)
+    setNuevoPdvFieldErrors({})
   }
 
   // Opciones para el formulario de nuevo PDV (idénticas al de edición)
@@ -2501,14 +2554,16 @@ export default function Home() {
       })
 
       if (!response.ok) {
+        if (response.status === 401) {
+          handleSessionExpired()
+          return
+        }
         let errorMessage = 'Error al subir imagen'
         try {
           const errorData = await response.json()
           errorMessage = errorData.error || errorMessage
         } catch {
-          if (response.status === 401) {
-            errorMessage = 'Sesión expirada. Cierra sesión y vuelve a ingresar.'
-          } else if (response.status === 413) {
+          if (response.status === 413) {
             errorMessage = 'La imagen es demasiado grande. Máximo 32MB.'
           } else if (response.status >= 500) {
             errorMessage = 'Error del servidor. Intenta de nuevo en unos minutos.'
@@ -2531,11 +2586,11 @@ export default function Home() {
           : null
       
       if (successMessage) {
-        setTimeout(() => alert(successMessage), 100)
+        setTimeout(() => toast.success(successMessage.replace(/^✅\s*/, '').replace(/\n/g, ' ')), 100)
       }
     } catch (error: any) {
       console.error('Error uploading image:', error)
-      alert('Error al subir la imagen: ' + error.message)
+      toast.error('Error al subir la imagen: ' + error.message)
       setNuevoPdvImagePreview(null)
     } finally {
       setUploadingNuevoPdvImage(false)
@@ -2553,9 +2608,16 @@ export default function Home() {
     if (!nuevoPdvData.telefono.trim()) errores.push('- Teléfono (poner 0 si no se obtiene)')
 
     if (errores.length > 0) {
-      alert(`⚠️ Por favor complete los siguientes campos obligatorios:\n\n${errores.join('\n')}`)
+      const fieldMap: Record<string, string> = {}
+      if (!nuevoPdvData.paquete.trim()) fieldMap.paquete = 'Paquete es obligatorio'
+      if (!nuevoPdvData.domicilio.trim()) fieldMap.domicilio = 'Domicilio es obligatorio'
+      if (!nuevoPdvData.ventaNoEditorial.trim()) fieldMap.ventaNoEditorial = 'Seleccione una opción'
+      if (!nuevoPdvData.telefono.trim()) fieldMap.telefono = 'Teléfono es obligatorio (0 si no se obtiene)'
+      setNuevoPdvFieldErrors(fieldMap)
+      toast.error('Complete los campos obligatorios marcados')
       return
     }
+    setNuevoPdvFieldErrors({})
 
     const confirmSave = window.confirm('¿Estás seguro de que deseas dar de alta este nuevo PDV?')
     if (!confirmSave) return
@@ -2582,12 +2644,16 @@ export default function Home() {
       })
 
       if (!response.ok) {
+        if (response.status === 401) {
+          handleSessionExpired()
+          return
+        }
         const errorData = await response.json().catch(() => ({}))
         throw new Error(errorData.error || 'Error al guardar el PDV')
       }
 
       const data = await response.json()
-      alert(`✅ ${data.message}`)
+      toast.success(data.message || 'PDV guardado correctamente')
       
       // Cerrar modales y resetear
       setShowNuevoPdvForm(false)
@@ -2596,7 +2662,7 @@ export default function Home() {
 
     } catch (error: any) {
       console.error('Error saving nuevo PDV:', error)
-      alert('Error al guardar el PDV: ' + error.message)
+      toast.error('Error al guardar el PDV: ' + error.message)
     } finally {
       setSavingNuevoPdv(false)
     }
@@ -2734,70 +2800,28 @@ export default function Home() {
     return pages
   }
 
+  // No mostrar login hasta haber comprobado si hay sesión guardada (evita flash al volver desde /mapa)
+  if (!sessionChecked) {
+    return (
+      <div className="login-container session-check-screen">
+        <div className="session-check-content">
+          <div className="spinner" />
+          <p>Verificando sesión...</p>
+        </div>
+      </div>
+    )
+  }
+
   // Login Screen
   if (!isAuthorized) {
     return (
-      <div className="login-container">
-        <div className="login-left">
-          <div className="welcome-content">
-            <div className="logo-wrapper">
-              <Image 
-                src="/Clarín_logo.svg.png" 
-                alt="Clarín Logo" 
-                width={180} 
-                height={50}
-                priority
-              />
-            </div>
-            <h1>Bienvenido a</h1>
-            <h2>Relevamiento de PDV</h2>
-            <p>
-              Accede con tu cuenta de Google para consultar y gestionar los datos del relevamiento de manera segura.
-            </p>
-          </div>
-          
-          <div className="clouds-decoration">
-            <div className="cloud cloud-1"></div>
-            <div className="cloud cloud-2"></div>
-            <div className="cloud cloud-3"></div>
-          </div>
-        </div>
-
-        <div className="login-right">
-          <div className="login-card">
-            <h3>Iniciar Sesión</h3>
-            <p>Usa tu cuenta de Google para acceder al sistema</p>
-            
-            <button 
-              className={`google-btn ${isLoading ? 'loading' : ''}`}
-              onClick={handleAuthClick}
-              disabled={!isReady || isLoading}
-            >
-              {isLoading ? (
-                <div className="spinner"></div>
-              ) : (
-                <svg viewBox="0 0 24 24">
-                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-                </svg>
-              )}
-              {isLoading ? 'Conectando...' : 'Continuar con Google'}
-            </button>
-            
-            {!isReady && (
-              <div style={{ textAlign: 'center', marginTop: '1rem', color: 'var(--gray-300)' }}>
-                <small>Cargando...</small>
-              </div>
-            )}
-          </div>
-          
-          <div className="footer-text">
-            <p>© 2026 Clarín - Todos los derechos reservados</p>
-          </div>
-        </div>
-      </div>
+      <LoginScreen
+        sessionExpired={sessionExpired}
+        onDismissSessionExpired={() => setSessionExpired(false)}
+        isReady={isReady}
+        isLoading={isLoading}
+        onAuthClick={handleAuthClick}
+      />
     )
   }
 
@@ -3594,7 +3618,7 @@ export default function Home() {
                     
                     return (
                       <div key={idx} className={`edit-field ${isAutoField ? 'auto-field' : ''} ${isCampoCerrado ? 'campo-cerrado' : ''} ${isCampoObligatorio ? 'campo-obligatorio' : ''}`}>
-                        <label>
+                        <label htmlFor={`edit-field-${idx}`}>
                           {isSugerenciasField ? displayHeader : header}
                           {isAutoField && <span className="auto-badge">Auto</span>}
                           {isCampoObligatorio && <span className="obligatorio-badge">* Obligatorio</span>}
@@ -3637,6 +3661,7 @@ export default function Home() {
                           return (
                             <div className="autocomplete-container">
                               <input
+                                id={`edit-field-${idx}`}
                                 type="text"
                                 value={filterText}
                                 placeholder={
@@ -3672,6 +3697,7 @@ export default function Home() {
                                 }}
                                 className={`autocomplete-input ${isCampoObligatorio ? 'input-obligatorio' : ''} ${noPartidoSelected ? 'autocomplete-disabled' : ''}`}
                                 disabled={isCampoCerrado || noPartidoSelected}
+                                aria-required={isCampoObligatorio}
                               />
                               {isOpen && filteredOptions.length > 0 && (
                                 <div className="autocomplete-dropdown">
@@ -3729,6 +3755,7 @@ export default function Home() {
                           
                           return (
                             <select
+                              id={`edit-field-${idx}`}
                               value={currentValue}
                               onChange={(e) => {
                                 if (!isCampoCerrado) {
@@ -3739,6 +3766,7 @@ export default function Home() {
                               }}
                               className="estado-kiosco-select"
                               disabled={isCampoCerrado}
+                              aria-required={isCampoObligatorio}
                             >
                               <option value="">-- Seleccionar {isDiasAtencionField ? 'días' : isHorarioField ? 'horario' : isEscaparateField ? 'escaparate' : isUbicacionField ? 'ubicación' : isFachadaField ? 'fachada' : isVentaNoEditorialField ? 'opción' : isRepartoField ? 'reparto' : isSuscripcionesField ? 'opción' : isParadaOnlineField ? 'opción' : isMayorVentaField ? 'opción' : isDistribuidoraField ? 'distribuidora' : 'estado'} --</option>
                               {/* Si el valor actual no está en las opciones, mostrarlo primero */}
@@ -3752,6 +3780,7 @@ export default function Home() {
                           )
                         })() : isSugerenciasField ? (
                           <textarea
+                            id={`edit-field-${idx}`}
                             value={editedValues[idx] || ''}
                             placeholder=""
                             onChange={(e) => {
@@ -3764,9 +3793,11 @@ export default function Home() {
                             disabled={isCampoCerrado}
                             className="sugerencias-textarea"
                             rows={3}
+                            aria-required={isCampoObligatorio}
                           />
                         ) : (
                           <input
+                            id={`edit-field-${idx}`}
                             type="text"
                             value={isAutoField ? displayValue : (editedValues[idx] || '')}
                             placeholder={isTelefonoField ? 'Ingrese teléfono (poner 0 si no se obtiene)' : placeholder}
@@ -3779,6 +3810,7 @@ export default function Home() {
                             }}
                             disabled={isIdField || isAutoField || isCampoCerrado || isProvinciaField}
                             className={`${isAutoField ? 'auto-input' : ''} ${isCampoObligatorio ? 'input-obligatorio' : ''}`}
+                            aria-required={isCampoObligatorio}
                           />
                         )}
                       </div>
@@ -3792,10 +3824,13 @@ export default function Home() {
                   <div className="image-upload-container">
                     {imagePreview ? (
                       <div className="image-preview-wrapper">
-                        <img 
+                        <Image 
                           src={imagePreview} 
-                          alt="Preview" 
+                          alt="Vista previa de la foto del PDV" 
                           className="image-preview"
+                          width={400}
+                          height={300}
+                          unoptimized
                         />
                         <div className="image-actions">
                           {uploadedImageUrl && (
@@ -3905,12 +3940,13 @@ export default function Home() {
               
               {/* Mostrar coordenadas existentes si las hay */}
               {(() => {
-                if (!sheetData) return null
+                if (!sheetData?.data?.length || locationModalRow === null || locationModalRow < 0 || locationModalRow >= sheetData.data.length) return null
                 const headers = sheetData.headers.map(h => h.toLowerCase().trim())
                 const latIndex = headers.findIndex(h => h === 'latitud' || h === 'lat')
                 const lngIndex = headers.findIndex(h => h === 'longitud' || h === 'lng' || h === 'long')
-                const existingLat = latIndex !== -1 ? String(sheetData.data[locationModalRow][latIndex] || '').trim() : ''
-                const existingLng = lngIndex !== -1 ? String(sheetData.data[locationModalRow][lngIndex] || '').trim() : ''
+                const row = sheetData.data[locationModalRow]
+                const existingLat = latIndex !== -1 && row ? String(row[latIndex] || '').trim() : ''
+                const existingLng = lngIndex !== -1 && row ? String(row[lngIndex] || '').trim() : ''
                 
                 if (existingLat || existingLng) {
                   return (
@@ -4179,8 +4215,9 @@ export default function Home() {
               <div className="edit-form nuevo-pdv-form">
                 {/* 1. Estado Kiosco */}
                 <div className="edit-field">
-                  <label>Estado del Kiosco</label>
+                  <label htmlFor="nuevo-pdv-estadoKiosco">Estado del Kiosco</label>
                   <select
+                    id="nuevo-pdv-estadoKiosco"
                     value={nuevoPdvData.estadoKiosco}
                     onChange={(e) => setNuevoPdvData({...nuevoPdvData, estadoKiosco: e.target.value})}
                     disabled={savingNuevoPdv}
@@ -4193,32 +4230,47 @@ export default function Home() {
 
                 {/* 2. Paquete */}
                 <div className="edit-field">
-                  <label>Paquete <span className="required">*</span></label>
+                  <label htmlFor="nuevo-pdv-paquete">Paquete <span className="required">*</span></label>
                   <input
+                    id="nuevo-pdv-paquete"
                     type="text"
                     value={nuevoPdvData.paquete}
-                    onChange={(e) => setNuevoPdvData({...nuevoPdvData, paquete: e.target.value})}
+                    onChange={(e) => {
+                      setNuevoPdvData({...nuevoPdvData, paquete: e.target.value})
+                      if (nuevoPdvFieldErrors.paquete) setNuevoPdvFieldErrors(prev => ({ ...prev, paquete: '' }))
+                    }}
                     placeholder="Nombre del paquete"
                     disabled={savingNuevoPdv}
+                    aria-required
+                    aria-invalid={!!nuevoPdvFieldErrors.paquete}
                   />
+                  {nuevoPdvFieldErrors.paquete && <span className="field-error" role="alert">{nuevoPdvFieldErrors.paquete}</span>}
                 </div>
 
                 {/* 3. Domicilio */}
                 <div className="edit-field">
-                  <label>Domicilio completo <span className="required">*</span></label>
+                  <label htmlFor="nuevo-pdv-domicilio">Domicilio completo <span className="required">*</span></label>
                   <input
+                    id="nuevo-pdv-domicilio"
                     type="text"
                     value={nuevoPdvData.domicilio}
-                    onChange={(e) => setNuevoPdvData({...nuevoPdvData, domicilio: e.target.value})}
+                    onChange={(e) => {
+                      setNuevoPdvData({...nuevoPdvData, domicilio: e.target.value})
+                      if (nuevoPdvFieldErrors.domicilio) setNuevoPdvFieldErrors(prev => ({ ...prev, domicilio: '' }))
+                    }}
                     placeholder="Calle, número, esquina, etc."
                     disabled={savingNuevoPdv}
+                    aria-required
+                    aria-invalid={!!nuevoPdvFieldErrors.domicilio}
                   />
+                  {nuevoPdvFieldErrors.domicilio && <span className="field-error" role="alert">{nuevoPdvFieldErrors.domicilio}</span>}
                 </div>
 
                 {/* 4. Provincia */}
                 <div className="edit-field">
-                  <label>Provincia</label>
+                  <label htmlFor="nuevo-pdv-provincia">Provincia</label>
                   <input
+                    id="nuevo-pdv-provincia"
                     type="text"
                     value={nuevoPdvData.provincia}
                     onChange={(e) => setNuevoPdvData({...nuevoPdvData, provincia: e.target.value})}
@@ -4228,8 +4280,9 @@ export default function Home() {
 
                 {/* 5. Partido */}
                 <div className="edit-field">
-                  <label>Partido</label>
+                  <label htmlFor="nuevo-pdv-partido">Partido</label>
                   <select
+                    id="nuevo-pdv-partido"
                     value={nuevoPdvData.partido}
                     onChange={(e) => setNuevoPdvData({...nuevoPdvData, partido: e.target.value, localidad: ''})}
                     disabled={savingNuevoPdv}
@@ -4243,9 +4296,10 @@ export default function Home() {
 
                 {/* 6. Localidad / Barrio - Campo predictivo */}
                 <div className="edit-field autocomplete-field">
-                  <label>Localidad / Barrio</label>
+                  <label htmlFor="nuevo-pdv-localidad">Localidad / Barrio</label>
                   <div className="autocomplete-container">
                     <input
+                      id="nuevo-pdv-localidad"
                       type="text"
                       value={nuevoPdvData.localidad}
                       onChange={(e) => handleLocalidadChange(e.target.value)}
@@ -4386,17 +4440,24 @@ export default function Home() {
 
                 {/* 14. Venta productos no editoriales */}
                 <div className="edit-field">
-                  <label>Venta prod. no editoriales <span className="required">*</span></label>
+                  <label htmlFor="nuevo-pdv-ventaNoEditorial">Venta prod. no editoriales <span className="required">*</span></label>
                   <select
+                    id="nuevo-pdv-ventaNoEditorial"
                     value={nuevoPdvData.ventaNoEditorial}
-                    onChange={(e) => setNuevoPdvData({...nuevoPdvData, ventaNoEditorial: e.target.value})}
+                    onChange={(e) => {
+                      setNuevoPdvData({...nuevoPdvData, ventaNoEditorial: e.target.value})
+                      if (nuevoPdvFieldErrors.ventaNoEditorial) setNuevoPdvFieldErrors(prev => ({ ...prev, ventaNoEditorial: '' }))
+                    }}
                     disabled={savingNuevoPdv}
+                    aria-required
+                    aria-invalid={!!nuevoPdvFieldErrors.ventaNoEditorial}
                   >
                     <option value="">Seleccionar...</option>
                     {nuevoPdvOptions.ventaNoEditorial.map(opt => (
                       <option key={opt} value={opt}>{opt}</option>
                     ))}
                   </select>
+                  {nuevoPdvFieldErrors.ventaNoEditorial && <span className="field-error" role="alert">{nuevoPdvFieldErrors.ventaNoEditorial}</span>}
                 </div>
 
                 {/* 15. Reparto */}
@@ -4473,14 +4534,21 @@ export default function Home() {
 
                 {/* 20. Teléfono */}
                 <div className="edit-field">
-                  <label>Teléfono <span className="required">*</span></label>
+                  <label htmlFor="nuevo-pdv-telefono">Teléfono <span className="required">*</span></label>
                   <input
+                    id="nuevo-pdv-telefono"
                     type="text"
                     value={nuevoPdvData.telefono}
-                    onChange={(e) => setNuevoPdvData({...nuevoPdvData, telefono: e.target.value})}
+                    onChange={(e) => {
+                      setNuevoPdvData({...nuevoPdvData, telefono: e.target.value})
+                      if (nuevoPdvFieldErrors.telefono) setNuevoPdvFieldErrors(prev => ({ ...prev, telefono: '' }))
+                    }}
                     placeholder="Poner 0 si no se obtiene"
                     disabled={savingNuevoPdv}
+                    aria-required
+                    aria-invalid={!!nuevoPdvFieldErrors.telefono}
                   />
+                  {nuevoPdvFieldErrors.telefono && <span className="field-error" role="alert">{nuevoPdvFieldErrors.telefono}</span>}
                 </div>
 
                 {/* 21. Correo electrónico */}
@@ -4525,7 +4593,7 @@ export default function Home() {
                   <div className="image-upload-container">
                     {nuevoPdvImagePreview ? (
                       <div className="image-preview-wrapper">
-                        <img src={nuevoPdvImagePreview} alt="Preview" className="image-preview" />
+                        <Image src={nuevoPdvImagePreview} alt="Vista previa de la foto del PDV" className="image-preview" width={400} height={300} unoptimized />
                         <div className="image-actions">
                           {nuevoPdvImageUrl && (
                             <a href={nuevoPdvImageUrl} target="_blank" rel="noopener noreferrer" className="btn-view-image">
@@ -4613,8 +4681,8 @@ export default function Home() {
           </div>
       )}
 
-      {/* Admin Sidebar */}
-      {showAdminSidebar && sheetData?.permissions?.isAdmin && (
+      {/* Admin Sidebar - visible para admin y supervisor */}
+      {showAdminSidebar && (sheetData?.permissions?.role === 'admin' || sheetData?.permissions?.role === 'supervisor') && (
         <>
           <div className="sidebar-overlay" onClick={() => setShowAdminSidebar(false)}></div>
           <aside className="admin-sidebar">
@@ -4624,6 +4692,22 @@ export default function Home() {
             </div>
             
             <nav className="sidebar-nav">
+              <Link 
+                href="/mapa" 
+                className="sidebar-nav-btn sidebar-nav-link"
+                onClick={() => setShowAdminSidebar(false)}
+              >
+                🗺️ Ver mapa
+              </Link>
+              <button 
+                className="sidebar-nav-btn sidebar-nav-action"
+                onClick={() => {
+                  setShowAdminSidebar(false)
+                  setShowNuevoPdvModal(true)
+                }}
+              >
+                ➕ Nuevo PDV
+              </button>
               <button 
                 className={`sidebar-nav-btn ${adminSidebarTab === 'hojas' ? 'active' : ''}`}
                 onClick={() => setAdminSidebarTab('hojas')}
@@ -4717,9 +4801,11 @@ export default function Home() {
                                 key={idx}
                                 className={`assigned-sheet-btn ${adminSelectedSheet === perm.assignedSheet ? 'active' : ''}`}
                                 onClick={() => {
-                                  setAdminSelectedSheet(perm.assignedSheet!)
+                                  const sheet = perm.assignedSheet ?? ''
+                                  if (!sheet) return
+                                  setAdminSelectedSheet(sheet)
                                   setCurrentPage(1)
-                                  if (accessToken) loadSheetData(accessToken, perm.assignedSheet!)
+                                  if (accessToken) loadSheetData(accessToken, sheet)
                                 }}
                               >
                                 <span className="assigned-user-name">{perm.email.split('@')[0]}</span>
@@ -4981,7 +5067,7 @@ export default function Home() {
             
             <div className="admin-body">
               <div className="admin-stats">
-                <span>Total de registros: <strong>{sheetData.data.length}</strong></span>
+                <span>Total de registros: <strong>{sheetData?.data?.length ?? 0}</strong></span>
               </div>
 
               {/* Add new user form - Solo visible para admins (no supervisores) */}
@@ -5017,91 +5103,52 @@ export default function Home() {
                 </div>
               )}
 
+              {/* Filtro por rol */}
+              <div className="users-role-filter">
+                <label className="users-filter-label">Filtrar por rol:</label>
+                <select
+                  value={userRoleFilter}
+                  onChange={(e) => setUserRoleFilter((e.target.value || 'all') as 'all' | '1' | '2' | '3')}
+                  className="users-filter-select"
+                >
+                  <option value="all">Todos</option>
+                  <option value="1">👤 Usuario</option>
+                  <option value="2">👁️ Supervisor</option>
+                  <option value="3">👑 Admin</option>
+                </select>
+              </div>
+
               <div className="users-grid">
-                {allPermissions.map((perm, idx) => {
-                  const stats = getUserStats(perm.email, perm.allowedIds)
-                  const completionPercent = stats.total > 0 
-                    ? Math.round((stats.relevados / stats.total) * 100) 
-                    : 0
-
-                  return (
-                    <div key={idx} className="user-card">
-                      <div className="user-card-header">
-                        <div className="user-info">
-                          <span className="user-label">Usuario:</span>
-                          <span className="user-card-email">{perm.email}</span>
-                          {/* Badge de nivel */}
-                          <span className={`user-level-badge level-${perm.level || 1}`}>
-                            {perm.level === 3 ? '👑 Admin' : perm.level === 2 ? '👁️ Supervisor' : '👤 Usuario'}
-                          </span>
-                        </div>
-                        {perm.assignedSheet && (
-                          <div className="assigned-sheet-badge">
-                            <span className="assigned-sheet-label">HOJA ASIGNADA:</span>
-                            <span className="assigned-sheet-name">📋 {perm.assignedSheet}</span>
-                          </div>
-                        )}
-                      </div>
-                      
-                      <div className="stats-boxes">
-                        <div className="stat-box stat-green">
-                          <span className="stat-label">Relevados</span>
-                          <span className="stat-number">{stats.relevados}</span>
-                        </div>
-                        <div className="stat-box stat-red">
-                          <span className="stat-label">Faltantes</span>
-                          <span className="stat-number">{stats.faltantes}</span>
-                        </div>
-                      </div>
-
-                      <div className="progress-section">
-                        <div className="progress-bar">
-                          <div 
-                            className="progress-fill" 
-                            style={{ width: `${completionPercent}%` }}
-                          ></div>
-                        </div>
-                        <span className="progress-text">
-                          {completionPercent}% completado ({stats.relevados} de {stats.total} asignados)
-                        </span>
-                      </div>
-
-                      {/* Botón Asignar IDs - Solo visible para admins (no supervisores) */}
-                      {sheetData?.permissions?.role === 'admin' && (
-                        <button 
-                          className="btn-assign"
-                          onClick={() => {
-                            setEditingPermission(perm)
-                            setNewPermIds(perm.allowedIds.join(', '))
-                          }}
-                        >
-                          Asignar IDs Permitidos
-                        </button>
-                      )}
-
-                      <div className="ids-section">
-                        <span className="ids-label">IDs asignados:</span>
-                        <div className="ids-tags">
-                          {perm.allowedIds.length === 0 ? (
-                            <span className="no-ids">Sin IDs asignados</span>
-                          ) : (
-                            perm.allowedIds.map((id, i) => (
-                              <span key={i} className="id-tag">{id}</span>
-                            ))
-                          )}
-                        </div>
-                        <span className="ids-hint">
-                          Este usuario solo verá las filas con estos IDs en la primera columna
-                        </span>
-                      </div>
-                    </div>
-                  )
-                })}
+                {allPermissions
+                  .filter(perm => userRoleFilter === 'all' || (perm.level ?? 1) === Number(userRoleFilter))
+                  .map((perm) => {
+                    const originalIdx = allPermissions.indexOf(perm)
+                    return (
+                      <UserCard
+                        key={originalIdx}
+                        perm={perm}
+                        originalIdx={originalIdx}
+                        isAdmin={sheetData?.permissions?.role === 'admin'}
+                        expandedIdsIndex={expandedIdsIndex}
+                        onAssignIds={(p) => {
+                          setEditingPermission(p)
+                          setNewPermIds(p.allowedIds.join(', '))
+                        }}
+                        onToggleExpand={(idx) => setExpandedIdsIndex(expandedIdsIndex === idx ? null : idx)}
+                      />
+                    )
+                  })}
 
                 {allPermissions.length === 0 && (
                   <div className="no-users">
                     <p>No hay usuarios con permisos configurados</p>
                     <p className="hint">Agrega un usuario usando el formulario de arriba</p>
+                  </div>
+                )}
+                {allPermissions.length > 0 && allPermissions.filter(perm => userRoleFilter === 'all' || (perm.level ?? 1) === Number(userRoleFilter)).length === 0 && (
+                  <div className="no-users">
+                    <p>No hay usuarios con el rol seleccionado</p>
+                    <p className="hint">Prueba con otro filtro o &quot;Todos&quot;</p>
                   </div>
                 )}
               </div>
@@ -5260,7 +5307,7 @@ export default function Home() {
                 <>
                   <div className="stats-summary">
                     <div className="summary-card">
-                      <span className="summary-number">{sheetData.data.length}</span>
+                      <span className="summary-number">{sheetData?.data?.length ?? 0}</span>
                       <span className="summary-label">Total PDV</span>
                     </div>
                     <div className="summary-card summary-green">
@@ -5533,24 +5580,17 @@ export default function Home() {
                 </select>
               </div>
             )}
-            {sheetData?.permissions?.isAdmin && (
+            {/* Descargar Reporte, Nuevo PDV y Ver mapa unificados dentro del Panel Admin */}
+            {!(sheetData?.permissions?.role === 'admin' || sheetData?.permissions?.role === 'supervisor') && (
               <button 
-                className="btn-download-report"
-                onClick={() => downloadSheetReport()}
-                disabled={loadingData || !sheetData}
-                title="Descargar reporte de la hoja actual"
+                className="btn-download-cuestionario"
+                onClick={() => setShowNuevoPdvModal(true)}
+                title="Agregar nuevo PDV o descargar cuestionario"
               >
-                📥 Descargar Reporte
+                ➕ Nuevo PDV
               </button>
             )}
-            <button 
-              className="btn-download-cuestionario"
-              onClick={() => setShowNuevoPdvModal(true)}
-              title="Agregar nuevo PDV o descargar cuestionario"
-            >
-              ➕ Nuevo PDV
-            </button>
-            {sheetData?.permissions?.isAdmin && (
+            {(sheetData?.permissions?.role === 'admin' || sheetData?.permissions?.role === 'supervisor') && (
               <button 
                 className="btn-admin"
                 onClick={() => {
@@ -6099,7 +6139,7 @@ export default function Home() {
           </div>
           {(() => {
             const allowedIds = sheetData.permissions?.allowedIds || []
-            const total = allowedIds.length > 0 ? allowedIds.length : sheetData.data.length
+            const total = allowedIds.length > 0 ? allowedIds.length : (sheetData?.data?.length ?? 0)
             const { relevadorIndex } = getAutoFillIndexes()
             let relevados = 0
             if (relevadorIndex !== -1) {

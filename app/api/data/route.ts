@@ -36,8 +36,6 @@ export async function GET(request: NextRequest) {
     // Determinar el rol basado en el nivel (super admins siempre son admin)
     const role: UserRole = getUserRole(userInfo.email, level)
     const isAdmin = role === 'admin' || role === 'supervisor'
-    
-    console.log(`Usuario: ${userInfo.email}, Nivel: ${level}, Rol: ${role}`)
 
     // Si es admin o supervisor, obtener todos los datos (puede ser de una hoja específica)
     if (isAdmin) {
@@ -47,22 +45,16 @@ export async function GET(request: NextRequest) {
       
       // Supervisores NO pueden acceder a la hoja "test" - redirigir a "Todos"
       if (role === 'supervisor' && requestedSheet.toLowerCase() === 'test') {
-        console.log('Supervisor intentó acceder a hoja "test" - redirigiendo a Todos')
         requestedSheet = 'Todos'
       }
-      
-      console.log(`Cargando datos en /api/data (${role === 'admin' ? 'Admin' : 'Supervisor'})`)
-      console.log('Hoja solicitada:', requestedSheet || 'principal')
       
       // Si se pide "Todos", obtener datos combinados de todas las hojas
       let allData: any[][]
       if (requestedSheet === 'Todos') {
-        console.log('Obteniendo datos combinados de todas las hojas...')
         allData = await getAllDataCombined(accessToken)
       } else {
         allData = await getAllData(accessToken, requestedSheet)
       }
-      console.log('Datos obtenidos, longitud:', allData.length)
 
       if (allData.length === 0) {
         return NextResponse.json({
@@ -105,13 +97,7 @@ export async function GET(request: NextRequest) {
       // Si solicita otra hoja, usar la asignada por defecto
     }
     
-    console.log(`Cargando datos en /api/data para usuario ${userInfo.email}`)
-    console.log(`Hoja asignada: ${assignedSheet || 'ninguna'}`)
-    console.log(`Hoja solicitada: ${requestedSheet || 'ninguna'}`)
-    console.log(`Hoja a leer: ${sheetToRead || 'principal'}`)
-    
     const allData = await getAllData(accessToken, sheetToRead)
-    console.log('Datos obtenidos, longitud:', allData.length)
 
     if (allData.length === 0) {
       return NextResponse.json({
@@ -139,7 +125,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({
         headers,
         data: [],
-        permissions: { allowedIds: [], isAdmin: false, role, level, assignedSheet: '' },
+        permissions: { allowedIds: [], isAdmin: false, role, level, assignedSheet: '', currentSheet: sheetToRead || '' },
       })
     }
 
@@ -170,6 +156,7 @@ export async function GET(request: NextRequest) {
         role,
         level,
         assignedSheet: '',
+        currentSheet: sheetToRead || '',
       },
     })
   } catch (error: any) {

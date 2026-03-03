@@ -2,7 +2,19 @@ import { google } from 'googleapis'
 
 const SPREADSHEET_ID = '13Ht_fOQuLHDMNYqKFr3FjedtU9ZkKOp_2_zCOnjHKm8'
 const PERMISSIONS_SHEET_NAME = 'Permisos' // Nombre de la hoja para almacenar permisos
-const DEFAULT_SHEET_NAME = 'Hoja 1' // Nombre de la hoja principal por defecto
+
+/** Caracteres que Google Sheets interpreta como inicio de fórmula; se prefija ' para guardar como texto */
+const FORMULA_PREFIX = /^[=+\-@\t\r]/
+
+/**
+ * Sanitiza un valor para escribir en una celda y evita inyección de fórmulas.
+ * Si el valor empieza por =, +, -, @, tab o retorno, se prefija ' para que sea texto.
+ */
+export function sanitizeCellForSheets(value: unknown): string {
+  const s = value === null || value === undefined ? '' : String(value)
+  if (FORMULA_PREFIX.test(s)) return "'" + s
+  return s
+}
 
 /**
  * Obtiene el cliente autenticado de Google Sheets
@@ -103,7 +115,6 @@ export async function getAllData(accessToken: string, sheetName: string = '') {
   }
   
   const range = `'${targetSheet}'!A:AM`
-  console.log('Cargando datos de hoja:', targetSheet)
   
   const response = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
@@ -115,13 +126,20 @@ export async function getAllData(accessToken: string, sheetName: string = '') {
 
 /**
  * Hojas a excluir del cálculo de estadísticas y de la vista "Todos"
- * Solo se incluyen las hojas de trabajo: YAMILA, ROMINA, GISELA, FABIANA, ANABELLA
+ * Solo se incluyen las hojas de trabajo: YAMILA, ROMINA, GISELA, FABIANA, ANABELLA (no Test)
  */
-const STATS_EXCLUDED_SHEETS = ['Permisos', 'Actividad', 'Hoja 2', 'Hoja 1', 'LOGs GPS', 'ALTA PDV']
+const STATS_EXCLUDED_SHEETS = ['Permisos', 'Actividad', 'Hoja 2', 'Hoja 1', 'LOGs GPS', 'ALTA PDV', 'Test']
+
+/** Normaliza un header para comparación (minúsculas, sin espacios extra) */
+function normalizeHeader(h: any): string {
+  return String(h ?? '').trim().toLowerCase()
+}
 
 /**
  * Obtiene todos los datos combinados de todas las hojas (excepto las excluidas y Hoja 1)
- * Los datos se ordenan por ID (primera columna)
+ * Los datos se ordenan por ID (primera columna).
+ * Cada fila se mapea al orden de columnas de la primera hoja para evitar que aparezcan
+ * nombres u otros datos en la columna de teléfono cuando las hojas tienen distinto orden de columnas.
  */
 export async function getAllDataCombined(accessToken: string): Promise<any[][]> {
   const sheets = getSheetsClient(accessToken)
@@ -133,12 +151,15 @@ export async function getAllDataCombined(accessToken: string): Promise<any[][]> 
   })
   
   const sheetsList = metaResponse.data.sheets || []
+  const excludedLower = STATS_EXCLUDED_SHEETS.map((s: string) => s.toLowerCase())
   const sheetNames = sheetsList
     .map(sheet => sheet.properties?.title || '')
-    .filter(name => name && !STATS_EXCLUDED_SHEETS.includes(name))
+    .filter(name => name && !excludedLower.includes(String(name).toLowerCase()))
   
   let combinedData: any[][] = []
   let headers: any[] = []
+  /** Headers canónicos (sin __HOJA__) para alinear columnas entre hojas */
+  let canonicalHeaders: any[] = []
   
   for (const sheetName of sheetNames) {
     try {
@@ -148,15 +169,36 @@ export async function getAllDataCombined(accessToken: string): Promise<any[][]> 
       })
       const data = response.data.values || []
       
-      if (data.length > 0) {
-        // Guardar los headers de la primera hoja y agregar columna HOJA
-        if (headers.length === 0) {
-          headers = [...data[0], '__HOJA__']
-        }
-        // Agregar los datos (sin headers) al combinado, incluyendo el nombre de la hoja
-        const rowsWithSheetName = data.slice(1).map(row => [...row, sheetName])
+      if (data.length === 0) continue
+      
+      const sheetHeaderRow = data[0] || []
+      
+      if (headers.length === 0) {
+        // Primera hoja: usar sus headers como canónicos y agregar columna HOJA
+        canonicalHeaders = sheetHeaderRow.map((c: any) => String(c ?? ''))
+        headers = [...canonicalHeaders, '__HOJA__']
+        // Filas de la primera hoja ya están en el orden correcto; solo agregar nombre de hoja
+        const rowsWithSheetName = data.slice(1).map((row: any[]) => {
+          const padded = [...(row || [])]
+          while (padded.length < canonicalHeaders.length) padded.push('')
+          return [...padded, sheetName]
+        })
         combinedData = combinedData.concat(rowsWithSheetName)
+        continue
       }
+      
+      // Hojas siguientes: mapear cada fila al orden canónico por nombre de columna
+      const sheetHeadersNorm = sheetHeaderRow.map(normalizeHeader)
+      const rowsWithSheetName = data.slice(1).map((row: any[]) => {
+        const out = canonicalHeaders.map((ch: string, i: number) => {
+          const key = normalizeHeader(ch)
+          const j = sheetHeadersNorm.findIndex((sh: string) => sh === key)
+          if (j === -1) return ''
+          return row && row[j] !== undefined && row[j] !== null ? row[j] : ''
+        })
+        return [...out, sheetName]
+      })
+      combinedData = combinedData.concat(rowsWithSheetName)
     } catch (error) {
       console.error(`Error obteniendo datos de hoja ${sheetName}:`, error)
     }
@@ -186,9 +228,10 @@ export async function getAllSheetsData(accessToken: string): Promise<{ [sheetNam
   })
   
   const sheetsList = metaResponse.data.sheets || []
+  const excludedLower = STATS_EXCLUDED_SHEETS.map((s: string) => s.toLowerCase())
   const sheetNames = sheetsList
     .map(sheet => sheet.properties?.title || '')
-    .filter(name => name && !STATS_EXCLUDED_SHEETS.includes(name))
+    .filter(name => name && !excludedLower.includes(String(name).toLowerCase()))
   
   // Obtener datos de cada hoja
   const allData: { [sheetName: string]: any[][] } = {}

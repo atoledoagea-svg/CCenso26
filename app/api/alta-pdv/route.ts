@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { validateGoogleToken, getAccessTokenFromRequest } from '@/app/lib/auth'
-import { getSheetsClient } from '@/app/lib/sheets'
+import { getSheetsClient, sanitizeCellForSheets } from '@/app/lib/sheets'
 
 // Forzar renderizado dinámico (usa headers)
 export const dynamic = 'force-dynamic'
@@ -108,9 +108,16 @@ export async function POST(request: NextRequest) {
     }
     const { pdvData } = body
 
-    if (!pdvData) {
+    if (!pdvData || typeof pdvData !== 'object' || Array.isArray(pdvData)) {
       return NextResponse.json(
-        { error: 'Datos del PDV requeridos' },
+        { error: 'Datos del PDV requeridos (objeto válido)' },
+        { status: 400 }
+      )
+    }
+    const paquete = String(pdvData.paquete ?? '').trim()
+    if (!paquete) {
+      return NextResponse.json(
+        { error: 'El campo Paquete es obligatorio' },
         { status: 400 }
       )
     }
@@ -152,34 +159,34 @@ export async function POST(request: NextRequest) {
       year: 'numeric'
     })
 
-    // Preparar la fila de datos en el orden especificado
+    // Preparar la fila de datos en el orden especificado (sanitizar para evitar inyección de fórmulas)
     const rowData = [
-      newId,                              // ID
-      pdvData.estadoKiosco || '',         // Estado Kiosco
-      pdvData.paquete || '',              // Paquete
-      pdvData.domicilio || '',            // Domicilio
-      pdvData.provincia || '',            // Provincia
-      pdvData.partido || '',              // Partido
-      pdvData.localidad || '',            // Localidad/Barrio
-      pdvData.nVendedor || '',            // N° Vendedor
-      pdvData.distribuidora || '',        // Distribuidora
-      pdvData.diasAtencion || '',         // Días de atención
-      pdvData.horario || '',              // Horario
-      pdvData.escaparate || '',           // Escaparate
-      pdvData.ubicacion || '',            // Ubicación
-      pdvData.fachada || '',              // Fachada puesto
-      pdvData.ventaNoEditorial || '',     // Venta productos no editoriales
-      pdvData.reparto || '',              // Reparto
-      pdvData.suscripciones || '',        // Suscripciones
-      pdvData.nombreApellido || '',       // Nombre y Apellido
-      pdvData.mayorVenta || '',           // Mayor venta
-      pdvData.paradaOnline || '',         // Utiliza Parada Online
-      pdvData.telefono || '',             // Teléfono
-      pdvData.correoElectronico || '',    // Correo electrónico
-      pdvData.observaciones || '',        // Observaciones
-      pdvData.comentarios || '',          // Comentarios
-      userInfo.email,                     // Relevado por
-      pdvData.imageUrl || ''              // IMG
+      newId,
+      sanitizeCellForSheets(pdvData.estadoKiosco ?? ''),
+      sanitizeCellForSheets(pdvData.paquete ?? ''),
+      sanitizeCellForSheets(pdvData.domicilio ?? ''),
+      sanitizeCellForSheets(pdvData.provincia ?? ''),
+      sanitizeCellForSheets(pdvData.partido ?? ''),
+      sanitizeCellForSheets(pdvData.localidad ?? ''),
+      sanitizeCellForSheets(pdvData.nVendedor ?? ''),
+      sanitizeCellForSheets(pdvData.distribuidora ?? ''),
+      sanitizeCellForSheets(pdvData.diasAtencion ?? ''),
+      sanitizeCellForSheets(pdvData.horario ?? ''),
+      sanitizeCellForSheets(pdvData.escaparate ?? ''),
+      sanitizeCellForSheets(pdvData.ubicacion ?? ''),
+      sanitizeCellForSheets(pdvData.fachada ?? ''),
+      sanitizeCellForSheets(pdvData.ventaNoEditorial ?? ''),
+      sanitizeCellForSheets(pdvData.reparto ?? ''),
+      sanitizeCellForSheets(pdvData.suscripciones ?? ''),
+      sanitizeCellForSheets(pdvData.nombreApellido ?? ''),
+      sanitizeCellForSheets(pdvData.mayorVenta ?? ''),
+      sanitizeCellForSheets(pdvData.paradaOnline ?? ''),
+      sanitizeCellForSheets(pdvData.telefono ?? ''),
+      sanitizeCellForSheets(pdvData.correoElectronico ?? ''),
+      sanitizeCellForSheets(pdvData.observaciones ?? ''),
+      sanitizeCellForSheets(pdvData.comentarios ?? ''),
+      userInfo.email,
+      sanitizeCellForSheets(pdvData.imageUrl ?? ''),
     ]
 
     // Agregar la fila
@@ -267,8 +274,6 @@ async function createAltaPdvSheet(sheets: any) {
         values: [headers],
       },
     })
-
-    console.log('Hoja ALTA PDV creada correctamente')
   } catch (error) {
     console.error('Error creando hoja ALTA PDV:', error)
   }

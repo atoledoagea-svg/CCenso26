@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { validateGoogleToken, getAccessTokenFromRequest, getUserRole } from '@/app/lib/auth'
-import { getSheetsClient, getUserPermissions, getFirstSheetName } from '@/app/lib/sheets'
+import { getSheetsClient, getUserPermissions, getFirstSheetName, sanitizeCellForSheets } from '@/app/lib/sheets'
 
 // Forzar renderizado dinámico (usa headers)
 export const dynamic = 'force-dynamic'
@@ -97,13 +97,10 @@ export async function POST(request: NextRequest) {
       
       if (isAdmin && requestedSheetName) {
         sheetName = requestedSheetName
-        console.log('Admin/Supervisor usando hoja seleccionada:', sheetName)
       } else if (!isAdmin && assignedSheet) {
         sheetName = assignedSheet
-        console.log('Usuario usando hoja asignada:', sheetName)
       } else if (isAdmin) {
         // Admin/Supervisor con "Todos" seleccionado - buscar el ID en todas las hojas
-        console.log('Admin/Supervisor con Todos - buscando ID en todas las hojas')
         
         // Obtener lista de hojas
         const metaResponse = await sheets.spreadsheets.get({
@@ -124,8 +121,6 @@ export async function POST(request: NextRequest) {
         
         // Buscar el ID en cada hoja
         for (const currentSheet of availableSheets) {
-          console.log(`Buscando ID "${rowId}" en hoja "${currentSheet}"...`)
-          
           const response = await sheets.spreadsheets.values.get({
             spreadsheetId: SPREADSHEET_ID,
             range: `'${currentSheet}'!A2:A`,
@@ -137,7 +132,6 @@ export async function POST(request: NextRequest) {
             if (cellId === rowId.toLowerCase()) {
               sheetName = currentSheet
               actualRowNumber = i + 2
-              console.log(`ID encontrado en hoja "${sheetName}" fila ${actualRowNumber}`)
               break
             }
           }
@@ -157,21 +151,16 @@ export async function POST(request: NextRequest) {
         }
       } else {
         sheetName = await getFirstSheetName(accessToken)
-        console.log('Usando hoja principal:', sheetName)
       }
 
       // Si ya encontramos la fila (caso admin con Todos), saltar la búsqueda
       if (actualRowNumber === -1) {
-        // Buscar la fila por ID en la hoja específica
-        console.log('Buscando fila con ID:', rowId, 'en hoja:', sheetName)
-
         const allDataResponse = await sheets.spreadsheets.values.get({
           spreadsheetId: SPREADSHEET_ID,
           range: `'${sheetName}'!A2:AM`,
         })
 
         const allRows = allDataResponse.data.values || []
-        console.log(`Total de filas de datos obtenidas: ${allRows.length}`)
 
         // Buscar la fila que tenga el ID correcto
         for (let i = 0; i < allRows.length; i++) {
@@ -180,7 +169,6 @@ export async function POST(request: NextRequest) {
             const cellId = String(row[0] || '').trim().toLowerCase()
             if (cellId === rowId.toLowerCase()) {
               actualRowNumber = i + 2 // +2 porque empezamos desde fila 2
-              console.log(`ID encontrado en fila ${actualRowNumber}`)
               break
             }
           }
@@ -198,20 +186,18 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // Actualizar la fila encontrada
+      // Actualizar la fila encontrada (sanitizar celdas para evitar inyección de fórmulas)
+      const sanitizedValues = values.map((v: unknown) => sanitizeCellForSheets(v))
       const range = `'${sheetName}'!A${actualRowNumber}:AM${actualRowNumber}`
-      console.log('Actualizando rango:', range)
 
       await sheets.spreadsheets.values.update({
         spreadsheetId: SPREADSHEET_ID,
         range: range,
         valueInputOption: 'USER_ENTERED',
         requestBody: {
-          values: [values],
+          values: [sanitizedValues],
         },
       })
-
-      console.log('Actualización exitosa')
 
     } catch (updateError: any) {
       console.error('Error en la actualización:', updateError)

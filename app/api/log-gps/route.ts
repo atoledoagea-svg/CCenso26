@@ -44,9 +44,11 @@ export async function POST(request: NextRequest) {
     }
     const { latitude, longitude, userAgent, isMobile, reason } = body
 
-    if (!latitude || !longitude) {
+    const lat = Number(latitude)
+    const lng = Number(longitude)
+    if (!Number.isFinite(lat) || lat < -90 || lat > 90 || !Number.isFinite(lng) || lng < -180 || lng > 180) {
       return NextResponse.json(
-        { error: 'Coordenadas requeridas' },
+        { error: 'Coordenadas inválidas. Latitud debe estar entre -90 y 90, longitud entre -180 y 180.' },
         { status: 400 }
       )
     }
@@ -61,29 +63,40 @@ export async function POST(request: NextRequest) {
       })
     } catch (error: any) {
       if (error.code === 400 || error.message?.includes('Unable to parse range')) {
-        // La hoja no existe, crearla
-        await sheets.spreadsheets.batchUpdate({
-          spreadsheetId: SPREADSHEET_ID,
-          requestBody: {
-            requests: [{
-              addSheet: {
-                properties: {
-                  title: LOGS_SHEET_NAME,
+        try {
+          await sheets.spreadsheets.batchUpdate({
+            spreadsheetId: SPREADSHEET_ID,
+            requestBody: {
+              requests: [{
+                addSheet: {
+                  properties: {
+                    title: LOGS_SHEET_NAME,
+                  }
                 }
-              }
-            }]
-          }
-        })
-
-        // Agregar headers
-        await sheets.spreadsheets.values.update({
-          spreadsheetId: SPREADSHEET_ID,
-          range: `'${LOGS_SHEET_NAME}'!A1:G1`,
-          valueInputOption: 'USER_ENTERED',
-          requestBody: {
-            values: [['Fecha', 'Hora', 'Email', 'Latitud', 'Longitud', 'Dispositivo', 'Evento']]
-          }
-        })
+              }]
+            }
+          })
+          await sheets.spreadsheets.values.update({
+            spreadsheetId: SPREADSHEET_ID,
+            range: `'${LOGS_SHEET_NAME}'!A1:G1`,
+            valueInputOption: 'USER_ENTERED',
+            requestBody: {
+              values: [['Fecha', 'Hora', 'Email', 'Latitud', 'Longitud', 'Dispositivo', 'Evento']]
+            }
+          })
+        } catch (createError: any) {
+          console.error('Error creando hoja LOGs GPS:', createError)
+          return NextResponse.json(
+            { error: 'Error al crear hoja de logs GPS', details: createError?.message },
+            { status: 500 }
+          )
+        }
+      } else {
+        console.error('Error accediendo a hoja LOGs GPS:', error)
+        return NextResponse.json(
+          { error: 'Error al acceder a la hoja de logs', details: error?.message },
+          { status: 500 }
+        )
       }
     }
 
@@ -117,8 +130,8 @@ export async function POST(request: NextRequest) {
       fecha,
       hora,
       userInfo.email,
-      latitude.toString(),
-      longitude.toString(),
+      lat.toString(),
+      lng.toString(),
       dispositivo,
       evento
     ]
@@ -133,8 +146,6 @@ export async function POST(request: NextRequest) {
         values: [logRow]
       }
     })
-
-    console.log(`GPS Log guardado: ${userInfo.email} - ${latitude}, ${longitude}`)
 
     return NextResponse.json({
       success: true,

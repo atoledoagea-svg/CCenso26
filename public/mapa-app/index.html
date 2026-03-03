@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <base href="/mapa-app/">
+  <title>Datos de Puntos de Venta Clarín</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <script src="config.js"></script>
+</head>
+<body>
+
+  <div class="app-container">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="logo">
+          <img src="/Clarinpng.png" alt="Clarín" class="logo-img">
+        </div>
+        <h1 class="app-title">Puntos de Venta Clarín</h1>
+        <p class="sidebar-stats" id="lugares-stats" aria-live="polite" role="status"></p>
+      </div>
+      <div class="search-section">
+        <div class="search-box-container">
+          <div class="search-box">
+            <span class="search-icon">🔍</span>
+            <input type="text" id="buscar-lugar" placeholder="Buscar por nombre, dirección o paquete..." autocomplete="off">
+          </div>
+          <div class="search-suggestions" id="search-suggestions"></div>
+        </div>
+      </div>
+      <div class="active-filters" id="active-filters" style="display: none;">
+        <div class="active-filters-header">
+          <span>Filtros activos:</span>
+          <button class="btn-clear-all" onclick="limpiarFiltros()">Limpiar todo</button>
+        </div>
+        <div class="active-filters-tags" id="active-filters-tags"></div>
+      </div>
+      <div class="saved-filters-section filter-category collapsed" data-category="saved-filters">
+        <div class="filter-category-header" onclick="toggleCategory(this)">
+          <span class="category-icon">⭐</span>
+          <span class="category-title">Filtros guardados</span>
+          <span class="category-count" id="count-saved-filters">0</span>
+          <button class="btn-save-filter" onclick="event.stopPropagation(); mostrarDialogoGuardarFiltro()" title="Guardar filtros actuales"><span>💾</span> Guardar</button>
+          <span class="category-arrow">▼</span>
+        </div>
+        <div class="saved-filters-content">
+          <div class="saved-filters-list" id="saved-filters-list"></div>
+        </div>
+      </div>
+      <div class="filters-section">
+        <div class="filter-category collapsed" data-category="estado">
+          <div class="filter-category-header" onclick="toggleCategory(this)">
+            <span class="category-icon">📊</span><span class="category-title">Estado</span>
+            <span class="category-count" id="count-estado">0</span><span class="category-arrow">▼</span>
+          </div>
+          <div class="filter-chips" id="filtro-estado-grupo"></div>
+        </div>
+        <div class="filter-category collapsed" data-category="distribuidora">
+          <div class="filter-category-header" onclick="toggleCategory(this)">
+            <span class="category-icon">🚚</span><span class="category-title">Distribuidora</span>
+            <span class="category-count" id="count-distribuidora">0</span><span class="category-arrow">▼</span>
+          </div>
+          <div class="filter-chips" id="filtro-distribuidora-grupo"></div>
+        </div>
+        <div class="filter-category collapsed" data-category="dias">
+          <div class="filter-category-header" onclick="toggleCategory(this)">
+            <span class="category-icon">📅</span><span class="category-title">Días de atención</span>
+            <span class="category-count" id="count-dias">0</span><span class="category-arrow">▼</span>
+          </div>
+          <div class="filter-chips" id="filtro-dias-grupo"></div>
+        </div>
+        <div class="filter-category collapsed" data-category="horario">
+          <div class="filter-category-header" onclick="toggleCategory(this)">
+            <span class="category-icon">🕐</span><span class="category-title">Horario</span>
+            <span class="category-count" id="count-horario">0</span><span class="category-arrow">▼</span>
+          </div>
+          <div class="filter-chips" id="filtro-horario-grupo"></div>
+        </div>
+        <div class="filter-category collapsed" data-category="escaparate">
+          <div class="filter-category-header" onclick="toggleCategory(this)">
+            <span class="category-icon">🪟</span><span class="category-title">Escaparate</span>
+            <span class="category-count" id="count-escaparate">0</span><span class="category-arrow">▼</span>
+          </div>
+          <div class="filter-chips" id="filtro-escaparate-grupo"></div>
+        </div>
+        <div class="filter-category collapsed" data-category="fachada">
+          <div class="filter-category-header" onclick="toggleCategory(this)">
+            <span class="category-icon">🏠</span><span class="category-title">Fachada Puesto</span>
+            <span class="category-count" id="count-fachada">0</span><span class="category-arrow">▼</span>
+          </div>
+          <div class="filter-chips" id="filtro-fachada-grupo"></div>
+        </div>
+        <div class="filter-category collapsed" data-category="venta_no_editorial">
+          <div class="filter-category-header" onclick="toggleCategory(this)">
+            <span class="category-icon">📦</span><span class="category-title">Venta No Editorial</span>
+            <span class="category-count" id="count-venta_no_editorial">0</span><span class="category-arrow">▼</span>
+          </div>
+          <div class="filter-chips" id="filtro-venta_no_editorial-grupo"></div>
+        </div>
+        <div class="filter-category collapsed" data-category="reparto">
+          <div class="filter-category-header" onclick="toggleCategory(this)">
+            <span class="category-icon">🛵</span><span class="category-title">Reparto</span>
+            <span class="category-count" id="count-reparto">0</span><span class="category-arrow">▼</span>
+          </div>
+          <div class="filter-chips" id="filtro-reparto-grupo"></div>
+        </div>
+        <div class="filter-category collapsed" data-category="suscripciones">
+          <div class="filter-category-header" onclick="toggleCategory(this)">
+            <span class="category-icon">📰</span><span class="category-title">Suscripciones</span>
+            <span class="category-count" id="count-suscripciones">0</span><span class="category-arrow">▼</span>
+          </div>
+          <div class="filter-chips" id="filtro-suscripciones-grupo"></div>
+        </div>
+        <div class="filter-category collapsed" data-category="usa_parada_online">
+          <div class="filter-category-header" onclick="toggleCategory(this)">
+            <span class="category-icon">💻</span><span class="category-title">Parada Online</span>
+            <span class="category-count" id="count-usa_parada_online">0</span><span class="category-arrow">▼</span>
+          </div>
+          <div class="filter-chips" id="filtro-usa_parada_online-grupo"></div>
+        </div>
+        <div class="filter-category collapsed" data-category="mayor_venta">
+          <div class="filter-category-header" onclick="toggleCategory(this)">
+            <span class="category-icon">💰</span><span class="category-title">Mayor Venta</span>
+            <span class="category-count" id="count-mayor_venta">0</span><span class="category-arrow">▼</span>
+          </div>
+          <div class="filter-chips" id="filtro-mayor_venta-grupo"></div>
+        </div>
+        <div class="filter-category collapsed" data-category="relevado_por">
+          <div class="filter-category-header" onclick="toggleCategory(this)">
+            <span class="category-icon">👤</span><span class="category-title">Relevado por</span>
+            <span class="category-count" id="count-relevado_por">0</span><span class="category-arrow">▼</span>
+          </div>
+          <div class="filter-chips" id="filtro-relevado_por-grupo"></div>
+        </div>
+      </div>
+      <div class="sidebar-footer-volver">
+        <a href="/" class="sidebar-link-volver" target="_top">← Volver al relevamiento</a>
+      </div>
+    </aside>
+    <main class="map-container">
+      <div id="map"></div>
+      <div class="map-results-counter" id="map-results-counter">
+        <span class="map-counter-number" id="lugares-count">0</span>
+        <span class="map-counter-label">resultados</span>
+      </div>
+      <div class="map-location-filters">
+        <div class="location-filter-group">
+          <label class="location-filter-label">Partidos</label>
+          <div class="dropdown-multiselect" id="dropdown-partidos">
+            <div class="dropdown-display" onclick="toggleDropdownMenu('partidos')">
+              <span class="dropdown-text" id="text-partidos">Seleccionar...</span>
+              <span class="dropdown-arrow">▼</span>
+            </div>
+            <div class="dropdown-menu" id="menu-partidos"></div>
+          </div>
+        </div>
+        <div class="location-filter-group">
+          <label class="location-filter-label">Localidades</label>
+          <div class="dropdown-multiselect" id="dropdown-localidades">
+            <div class="dropdown-display" onclick="toggleDropdownMenu('localidades')">
+              <span class="dropdown-text" id="text-localidades">Seleccionar...</span>
+              <span class="dropdown-arrow">▼</span>
+            </div>
+            <div class="dropdown-menu" id="menu-localidades"></div>
+          </div>
+        </div>
+      </div>
+      <div class="map-controls-left">
+        <button class="btn-share-map" onclick="compartirEnlace()" title="Compartir enlace con filtros actuales"><span>🔗</span> Compartir</button>
+        <button class="btn-share-map btn-export-map" onclick="exportarExcel()" title="Exportar a Excel"><span>📥</span> Exportar</button>
+      </div>
+      <div class="map-controls">
+        <div class="theme-toggle">
+          <button class="theme-btn" id="btn-modo-oscuro" onclick="cambiarModo('oscuro')" title="Modo oscuro">🌙</button>
+          <button class="theme-btn active" id="btn-modo-claro" onclick="cambiarModo('claro')" title="Modo claro">☀️</button>
+        </div>
+        <button class="btn-reset-view" onclick="volverAZoomGeneral()" title="Resetear vista (R)">🏠 Vista inicial</button>
+        <button class="btn-keyboard-help" onclick="toggleKeyboardHelp()" title="Atajos de teclado (?)">⌨️</button>
+      </div>
+      <div class="keyboard-help-panel" id="keyboard-help-panel" style="display: none;">
+        <div class="keyboard-help-header">
+          <span>⌨️ Atajos de teclado</span>
+          <button class="keyboard-help-close" onclick="toggleKeyboardHelp()">×</button>
+        </div>
+        <div class="keyboard-help-content">
+          <div class="keyboard-shortcut"><kbd>F</kbd><span>Enfocar búsqueda</span></div>
+          <div class="keyboard-shortcut"><kbd>E</kbd><span>Exportar a Excel</span></div>
+          <div class="keyboard-shortcut"><kbd>R</kbd><span>Resetear vista</span></div>
+          <div class="keyboard-shortcut"><kbd>Esc</kbd><span>Limpiar filtros</span></div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+
+  <div class="loading-overlay hidden" id="loading-overlay" style="display: none;">
+    <div class="loading-container">
+      <div class="loading-spinner">
+        <div class="spinner-ring"></div>
+        <div class="spinner-ring"></div>
+        <div class="spinner-ring"></div>
+      </div>
+      <h3 class="loading-title">Cargando puntos de venta...</h3>
+      <p class="loading-tip" id="loading-tip">Consejo: Usa el buscador para encontrar puntos rápidamente</p>
+      <div class="loading-progress">
+        <div class="loading-progress-bar" id="loading-progress-bar"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="tour-overlay" id="tour-overlay" style="display: none;">
+    <div class="tour-highlight" id="tour-highlight"></div>
+    <div class="tour-tooltip" id="tour-tooltip">
+      <div class="tour-tooltip-header">
+        <span class="tour-step-counter" id="tour-step-counter">1 / 9</span>
+        <button class="tour-close" onclick="cerrarTour()">×</button>
+      </div>
+      <div class="tour-tooltip-content">
+        <h3 class="tour-title" id="tour-title">Bienvenido</h3>
+        <p class="tour-description" id="tour-description">Descripción del paso</p>
+        <div class="tour-actions">
+          <button class="tour-btn-skip" onclick="saltarTour()">Saltar tutorial</button>
+          <div class="tour-nav-buttons">
+            <button class="tour-btn-prev" id="tour-btn-prev" onclick="tourAnterior()" style="display: none;">Anterior</button>
+            <button class="tour-btn-next" id="tour-btn-next" onclick="tourSiguiente()">Siguiente</button>
+            <button class="tour-btn-finish" id="tour-btn-finish" onclick="finalizarTour()" style="display: none;">Finalizar</button>
+          </div>
+        </div>
+        <div class="tour-checkbox">
+          <label><input type="checkbox" id="tour-no-mostrar"> No mostrar este tutorial nuevamente</label>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="modal-guardar-filtro" style="display: none;">
+    <div class="modal-content modal-small">
+      <div class="modal-header">
+        <h3>Nombrar filtro</h3>
+        <button class="modal-close" onclick="cerrarModalGuardarFiltro()">×</button>
+      </div>
+      <div class="modal-body">
+        <label for="nombre-filtro">Nombre del filtro:</label>
+        <input type="text" id="nombre-filtro" placeholder="Ej: Puntos abiertos en CABA" maxlength="50" onkeydown="if(event.key === 'Enter') guardarFiltroActual()">
+        <div class="modal-actions">
+          <button class="btn-modal-cancel" onclick="cerrarModalGuardarFiltro()">Cancelar</button>
+          <button class="btn-modal-save" onclick="guardarFiltroActual()">Guardar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="custom-popup-overlay" id="custom-popup-overlay" style="display: none;">
+    <div class="custom-popup">
+      <div class="custom-popup-icon">✅</div>
+      <h3 class="custom-popup-title" id="custom-popup-title">Filtro guardado</h3>
+      <p class="custom-popup-message" id="custom-popup-message">El filtro se ha guardado correctamente</p>
+      <button class="custom-popup-button" onclick="cerrarPopupConfirmacion()">Aceptar</button>
+    </div>
+  </div>
+
+  <div class="mobile-search-popup" id="mobile-search-popup">
+    <div class="mobile-search-overlay" onclick="toggleMobileSearchPopup()"></div>
+    <div class="mobile-search-content">
+      <div class="mobile-search-header">
+        <h2>Buscar</h2>
+        <button class="mobile-search-close" onclick="toggleMobileSearchPopup()">×</button>
+      </div>
+      <div class="mobile-search-body">
+        <div class="search-box-container">
+          <div class="search-box">
+            <span class="search-icon">🔍</span>
+            <input type="text" id="mobile-buscar-lugar" placeholder="Buscar por nombre, dirección o paquete..." autocomplete="off">
+          </div>
+          <div class="search-suggestions" id="mobile-search-suggestions"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="mobile-drawer" id="mobile-drawer">
+    <div class="mobile-drawer-overlay" onclick="toggleMobileDrawer()"></div>
+    <div class="mobile-drawer-content">
+      <div class="mobile-drawer-header">
+        <h2>Menú</h2>
+        <button class="mobile-drawer-close" onclick="toggleMobileDrawer()">×</button>
+      </div>
+      <div class="mobile-drawer-body"></div>
+    </div>
+  </div>
+
+  <nav class="mobile-bottom-nav">
+    <button class="mobile-nav-item" onclick="focusMobileSearch()" title="Buscar">
+      <div class="mobile-nav-icon mobile-nav-icon-search">🔍</div>
+      <span class="mobile-nav-label">BUSCAR</span>
+    </button>
+    <button class="mobile-nav-item mobile-nav-center" onclick="scrollToTop()" title="Inicio">
+      <div class="mobile-nav-icon-center">
+        <img src="/Clarinpng.png" alt="Clarín" class="mobile-nav-logo-img">
+      </div>
+    </button>
+    <button class="mobile-nav-item" onclick="toggleMobileDrawer()" title="Menú">
+      <div class="mobile-nav-icon mobile-nav-icon-filters">🎛️</div>
+      <span class="mobile-nav-label">MENÚ</span>
+    </button>
+  </nav>
+</body>
+</html>
