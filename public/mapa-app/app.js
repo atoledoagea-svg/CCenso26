@@ -80,6 +80,7 @@ const ESTILOS_MAPA = {
 // Colores de marcadores estilo Clarín
 const MARKER_COLORS = {
   abierto: '#4CAF50',                 // Verde
+  abiertoCafeteria: '#C4A574',        // Marrón claro (Ahora es Cafeteria)
   cerrado: '#E31837',                 // Rojo Clarín
   cerradoAhora: '#7B1FA2',            // Morado (Cerrado ahora)
   cerradoReparto: '#E91E8C',          // Rosa (Cerrado pero hace reparto)
@@ -565,10 +566,15 @@ function actualizarTextoDropdown(tipo) {
   }
 }
 
+// Opciones de estado que siempre deben aparecer en el filtro (aunque no haya datos aún)
+const ESTADOS_FIJOS_EN_FILTRO = ['Ahora es Cafeteria'];
+
 // Llenar checkboxes dinámicos después de cargar lugares
 function llenarFiltrosDinamicos() {
-  // Extraer valores únicos de los lugares
-  const estados = [...new Set(lugares.map(l => l.estado).filter(Boolean))];
+  // Extraer valores únicos de los lugares y asegurar que opciones fijas estén siempre
+  const estadosSet = new Set(lugares.map(l => l.estado).filter(Boolean));
+  ESTADOS_FIJOS_EN_FILTRO.forEach(e => estadosSet.add(e));
+  const estados = [...estadosSet];
   const distribuidoras = [...new Set(lugares.map(l => l.distribuidora).filter(Boolean))];
   const dias = [...new Set(lugares.map(l => l.dias_atencion).filter(Boolean))];
   const horarios = [...new Set(lugares.map(l => l.horario).filter(Boolean))];
@@ -625,7 +631,7 @@ function llenarGrupoCheckboxes(containerId, valores, tipo, rootElement) {
   if (!container) return;
   
   const iconos = {
-    estado: { 'Abierto': '✅', 'Cerrado ahora': '🔴', 'Abre ocasionalmente': '🟡', 'Cerrado pero hace reparto': '🛵' },
+    estado: { 'Abierto': '✅', 'Ahora es Cafeteria': '☕', 'Cerrado ahora': '🔴', 'Abre ocasionalmente': '🟡', 'Cerrado pero hace reparto': '🛵' },
     distribuidora: '🚚',
     dias: '📅',
     horario: '🕐',
@@ -648,7 +654,9 @@ function llenarGrupoCheckboxes(containerId, valores, tipo, rootElement) {
 /** Rellena los filtros dentro de un contenedor (ej. el clon del drawer en móvil) usando los datos actuales de lugares */
 function llenarFiltrosEnContenedor(root) {
   if (!root || !lugares.length) return;
-  const estados = [...new Set(lugares.map(l => l.estado).filter(Boolean))];
+  const estadosSet = new Set(lugares.map(l => l.estado).filter(Boolean));
+  ESTADOS_FIJOS_EN_FILTRO.forEach(e => estadosSet.add(e));
+  const estados = [...estadosSet];
   const distribuidoras = [...new Set(lugares.map(l => l.distribuidora).filter(Boolean))];
   const dias = [...new Set(lugares.map(l => l.dias_atencion).filter(Boolean))];
   const horarios = [...new Set(lugares.map(l => l.horario).filter(Boolean))];
@@ -830,20 +838,23 @@ function renderizarMarcadores() {
     const esCerradoPeroHaceReparto = estadoLower.includes('cerrado pero hace reparto');
     const esCerradoAhora = estadoLower.includes('cerrado ahora');
     const noSeEncuentraPuesto = estadoLower.includes('no se encuentra el puesto');
+    const esAbiertoCafeteria = estadoLower.includes('ahora es cafeteria');
     const color = esCerradoDefinitivamente ? MARKER_COLORS.cerradoDefinitivamente :
                   esCerradoPeroHaceReparto ? MARKER_COLORS.cerradoReparto :
                   esCerradoAhora ? MARKER_COLORS.cerradoAhora :
                   noSeEncuentraPuesto ? MARKER_COLORS.noSeEncuentra :
+                  esAbiertoCafeteria ? MARKER_COLORS.abiertoCafeteria :
                   lugar.estaAbierto === true ? MARKER_COLORS.abierto :
                   lugar.estaAbierto === false ? MARKER_COLORS.cerrado :
                   MARKER_COLORS.desconocido;
 
+    const markerIcon = esAbiertoCafeteria ? '☕' : '🏪';
     // Crear icono personalizado
     const customIcon = L.divIcon({
       className: 'custom-marker-container',
       html: `
         <div class="custom-marker" style="background: ${color}">
-          <span class="custom-marker-inner">🏪</span>
+          <span class="custom-marker-inner">${markerIcon}</span>
         </div>
       `,
       iconSize: [36, 36],

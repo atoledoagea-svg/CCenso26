@@ -6,6 +6,7 @@ import 'leaflet/dist/leaflet.css'
 
 const MARKER_COLORS: Record<string, string> = {
   abierto: '#4CAF50',
+  abiertoCafeteria: '#C4A574', // Marrón claro: Ahora es Cafeteria
   cerrado: '#E31837',
   cerradoDefinitivamente: '#E31837', // Rojo: Cerrado definitivamente
   cerradoAhora: '#7B1FA2', // Morado: Cerrado ahora
@@ -85,6 +86,7 @@ export default function MapaView({ lugares }: { lugares: Lugar[] }) {
       const esCerradoPeroHaceReparto = estadoLower.includes('cerrado pero hace reparto')
       const esCerradoAhora = estadoLower.includes('cerrado ahora')
       const noSeEncuentraPuesto = estadoLower.includes('no se encuentra el puesto')
+      const esAbiertoCafeteria = estadoLower.includes('ahora es cafeteria')
       const color =
         esCerradoPeroHaceReparto
           ? MARKER_COLORS.cerradoReparto
@@ -92,11 +94,13 @@ export default function MapaView({ lugares }: { lugares: Lugar[] }) {
             ? MARKER_COLORS.cerradoAhora
             : noSeEncuentraPuesto
               ? MARKER_COLORS.noSeEncuentra
-              : lugar.estaAbierto === true
-                ? MARKER_COLORS.abierto
-                : lugar.estaAbierto === false
-                  ? MARKER_COLORS.cerrado
-                  : MARKER_COLORS.desconocido
+              : esAbiertoCafeteria
+                ? MARKER_COLORS.abiertoCafeteria
+                : lugar.estaAbierto === true
+                  ? MARKER_COLORS.abierto
+                  : lugar.estaAbierto === false
+                    ? MARKER_COLORS.cerrado
+                    : MARKER_COLORS.desconocido
       const circle = L.circleMarker([lugar.latitud, lugar.longitud], {
         radius: 8,
         fillColor: color,
