@@ -81,7 +81,10 @@ const ESTILOS_MAPA = {
 const MARKER_COLORS = {
   abierto: '#4CAF50',                 // Verde
   cerrado: '#E31837',                 // Rojo Clarín
-  cerradoDefinitivamente: '#000000',  // Negro
+  cerradoAhora: '#7B1FA2',            // Morado (Cerrado ahora)
+  cerradoReparto: '#E91E8C',          // Rosa (Cerrado pero hace reparto)
+  cerradoDefinitivamente: '#E31837',   // Rojo (Cerrado definitivamente)
+  noSeEncuentra: '#F7DC0A',           // Amarillo patito (No se encuentra el puesto)
   desconocido: '#FF9800'              // Naranja
 };
 
@@ -822,8 +825,15 @@ function renderizarMarcadores() {
   lugaresFiltrados.forEach(lugar => {
     if (!lugar.latitud || !lugar.longitud) return;
 
-    const esCerradoDefinitivamente = (lugar.estado || '').toLowerCase().includes('cerrado definitivamente');
+    const estadoLower = (lugar.estado || '').toLowerCase();
+    const esCerradoDefinitivamente = estadoLower.includes('cerrado definitivamente');
+    const esCerradoPeroHaceReparto = estadoLower.includes('cerrado pero hace reparto');
+    const esCerradoAhora = estadoLower.includes('cerrado ahora');
+    const noSeEncuentraPuesto = estadoLower.includes('no se encuentra el puesto');
     const color = esCerradoDefinitivamente ? MARKER_COLORS.cerradoDefinitivamente :
+                  esCerradoPeroHaceReparto ? MARKER_COLORS.cerradoReparto :
+                  esCerradoAhora ? MARKER_COLORS.cerradoAhora :
+                  noSeEncuentraPuesto ? MARKER_COLORS.noSeEncuentra :
                   lugar.estaAbierto === true ? MARKER_COLORS.abierto :
                   lugar.estaAbierto === false ? MARKER_COLORS.cerrado :
                   MARKER_COLORS.desconocido;

@@ -7,6 +7,10 @@ import 'leaflet/dist/leaflet.css'
 const MARKER_COLORS: Record<string, string> = {
   abierto: '#4CAF50',
   cerrado: '#E31837',
+  cerradoDefinitivamente: '#E31837', // Rojo: Cerrado definitivamente
+  cerradoAhora: '#7B1FA2', // Morado: Cerrado ahora
+  cerradoReparto: '#E91E8C', // Rosa: Cerrado pero hace reparto
+  noSeEncuentra: '#F7DC0A', // Amarillo patito: No se encuentra el puesto
   desconocido: '#FF9800',
 }
 
@@ -20,6 +24,7 @@ interface Lugar {
   latitud: number
   longitud: number
   estaAbierto: boolean | null
+  estado?: string
 }
 
 export default function MapaView({ lugares }: { lugares: Lugar[] }) {
@@ -76,12 +81,22 @@ export default function MapaView({ lugares }: { lugares: Lugar[] }) {
     markersRef.current = []
 
     lugares.forEach((lugar) => {
+      const estadoLower = (lugar.estado || '').toLowerCase()
+      const esCerradoPeroHaceReparto = estadoLower.includes('cerrado pero hace reparto')
+      const esCerradoAhora = estadoLower.includes('cerrado ahora')
+      const noSeEncuentraPuesto = estadoLower.includes('no se encuentra el puesto')
       const color =
-        lugar.estaAbierto === true
-          ? MARKER_COLORS.abierto
-          : lugar.estaAbierto === false
-            ? MARKER_COLORS.cerrado
-            : MARKER_COLORS.desconocido
+        esCerradoPeroHaceReparto
+          ? MARKER_COLORS.cerradoReparto
+          : esCerradoAhora
+            ? MARKER_COLORS.cerradoAhora
+            : noSeEncuentraPuesto
+              ? MARKER_COLORS.noSeEncuentra
+              : lugar.estaAbierto === true
+                ? MARKER_COLORS.abierto
+                : lugar.estaAbierto === false
+                  ? MARKER_COLORS.cerrado
+                  : MARKER_COLORS.desconocido
       const circle = L.circleMarker([lugar.latitud, lugar.longitud], {
         radius: 8,
         fillColor: color,

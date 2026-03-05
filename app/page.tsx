@@ -1413,9 +1413,16 @@ export default function Home() {
         valuesToSave[fechaIndex] = dateStr
       }
       
-      // Set user email in relevador field
+      // Relevado por: solo lo llenamos con el email del usuario si es usuario normal.
+      // Admin y supervisor no deben pisar esta columna para no superponer el correo del relevador original.
+      const isAdminOrSupervisor = sheetData.permissions?.role === 'admin' || sheetData.permissions?.role === 'supervisor'
       if (relevadorIndex !== -1) {
-        valuesToSave[relevadorIndex] = userEmail
+        if (isAdminOrSupervisor) {
+          const originalRelevador = sheetData.data[editingRow]?.[relevadorIndex]
+          valuesToSave[relevadorIndex] = originalRelevador !== undefined && originalRelevador !== null ? originalRelevador : ''
+        } else {
+          valuesToSave[relevadorIndex] = userEmail
+        }
       }
       
       // Detectar y guardar dispositivo
@@ -2427,7 +2434,7 @@ export default function Home() {
 
   // Opciones para el formulario de nuevo PDV (idénticas al de edición)
   const nuevoPdvOptions = {
-    estadoKiosco: ['Abierto', 'Cerrado ahora', 'Abre ocasionalmente', 'Cerrado definitivamente', 'Zona Peligrosa', 'No se encuentra el puesto'],
+    estadoKiosco: ['Abierto', 'Cerrado ahora', 'Abre ocasionalmente', 'Cerrado pero hace reparto', 'Cerrado definitivamente', 'Zona Peligrosa', 'No se encuentra el puesto'],
     diasAtencion: ['Todos los dias', 'De L a V', 'Sabado y Domingo', '3 veces por semana', '4 veces por Semana'],
     horario: ['Mañana', 'Mañana y Tarde', 'Tarde', 'Solo reparto/Susc.'],
     escaparate: ['Chico', 'Mediano', 'Grande'],
@@ -3129,6 +3136,7 @@ export default function Home() {
                       'Abierto',
                       'Cerrado ahora',
                       'Abre ocasionalmente',
+                      'Cerrado pero hace reparto',
                       'Cerrado definitivamente',
                       'Zona Peligrosa',
                       'No se encuentra el puesto'
@@ -3761,6 +3769,14 @@ export default function Home() {
                                 if (!isCampoCerrado) {
                                   const newValues = [...editedValues]
                                   newValues[idx] = e.target.value
+                                  // Si elige "Cerrado pero hace reparto" en Estado Kiosco, poner Reparto en "Si"
+                                  if (isEstadoKioscoField && e.target.value === 'Cerrado pero hace reparto') {
+                                    const repartoIdx = sheetData.headers.findIndex((h: string) => {
+                                      const l = String(h || '').toLowerCase().trim()
+                                      return l === 'reparto' || l === 'reparto:'
+                                    })
+                                    if (repartoIdx !== -1) newValues[repartoIdx] = 'Si'
+                                  }
                                   setEditedValues(newValues)
                                 }
                               }}
@@ -4219,7 +4235,14 @@ export default function Home() {
                   <select
                     id="nuevo-pdv-estadoKiosco"
                     value={nuevoPdvData.estadoKiosco}
-                    onChange={(e) => setNuevoPdvData({...nuevoPdvData, estadoKiosco: e.target.value})}
+                    onChange={(e) => {
+                      const nuevoEstado = e.target.value
+                      setNuevoPdvData({
+                        ...nuevoPdvData,
+                        estadoKiosco: nuevoEstado,
+                        reparto: nuevoEstado === 'Cerrado pero hace reparto' ? 'Si' : nuevoPdvData.reparto
+                      })
+                    }}
                     disabled={savingNuevoPdv}
                   >
                     {nuevoPdvOptions.estadoKiosco.map(opt => (
