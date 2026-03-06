@@ -2714,6 +2714,10 @@ export default function Home() {
   }
 
   const filteredData = sheetData?.data.filter(row => {
+    // Omitir filas sin ID (evita filas en blanco al inicio cuando se usa "Relevamiento: Todos")
+    const rowId = String(row?.[0] ?? '').trim()
+    if (!rowId) return false
+
     // Filtro por búsqueda de texto
     if (searchTerm.trim()) {
       const searchValue = searchTerm.trim().toLowerCase()
