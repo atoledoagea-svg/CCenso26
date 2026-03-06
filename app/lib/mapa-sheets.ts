@@ -47,6 +47,10 @@ const COLUMN_MAP: Record<string, string> = {
   'IMG': 'imagen',
   'Latitud': 'latitud',
   'Longitud': 'longitud',
+  'LATITUD': 'latitud',
+  'LONGITUD': 'longitud',
+  'Lat': 'latitud',
+  'Lng': 'longitud',
   'DISPOSITIVO': 'dispositivo',
 }
 
@@ -149,6 +153,21 @@ function determinarSiAbierto(row: Record<string, string>): boolean | null {
   return null
 }
 
+/** Parsea coordenada aceptando coma o punto como decimal (ej. -34,6037 o -34.6037) */
+function parseCoord(value: string | undefined | null): number {
+  const s = (value != null ? String(value).trim() : '').replace(',', '.')
+  if (!s) return NaN
+  const n = parseFloat(s)
+  return typeof n === 'number' && !isNaN(n) ? n : NaN
+}
+
+/** Obtiene lat/long de una fila probando varias claves posibles */
+function getLatLng(row: Record<string, string>): { lat: number; lng: number } {
+  const latStr = (row.latitud ?? row.Latitud ?? row.LATITUD ?? row.lat ?? '').trim()
+  const lngStr = (row.longitud ?? row.Longitud ?? row.LONGITUD ?? row.lng ?? '').trim()
+  return { lat: parseCoord(latStr), lng: parseCoord(lngStr) }
+}
+
 async function fetchLugaresFromHoja(hoja: { nombre: string; gid: string }) {
   try {
     const url = BASE_CSV_URL + hoja.gid
@@ -160,19 +179,20 @@ async function fetchLugaresFromHoja(hoja: { nombre: string; gid: string }) {
     const rawData = parseCSV(csvText)
     const raw = rawData.length
     const conCoordenadas = rawData.filter((row) => {
-      const lat = parseFloat(row.latitud)
-      const lng = parseFloat(row.longitud)
+      const { lat, lng } = getLatLng(row)
       return !isNaN(lat) && !isNaN(lng) && lat !== 0 && lng !== 0
     })
     const sinCoordenadas = raw - conCoordenadas.length
-    const lugares: LugarMapa[] = conCoordenadas.map((row) => ({
+    const lugares: LugarMapa[] = conCoordenadas.map((row) => {
+      const { lat, lng } = getLatLng(row)
+      return {
       id: row.id || Math.random().toString(36).substring(2, 11),
       nombre: row.paquete || 'Sin nombre',
       paquete: row.paquete || '',
       tipo: 'kiosco',
       descripcion: [row.ubicacion, row.escaparate, row.fachada].filter(Boolean).join(' - '),
-      latitud: parseFloat(row.latitud),
-      longitud: parseFloat(row.longitud),
+      latitud: lat,
+      longitud: lng,
       direccion: row.direccion || '',
       localidad: row.localidad || '',
       partido: row.partido || '',
@@ -199,7 +219,8 @@ async function fetchLugaresFromHoja(hoja: { nombre: string; gid: string }) {
           ? String(row.relevado_por).trim()
           : (RELEVADOR_NOMBRE_A_EMAIL[hoja.nombre] || hoja.nombre),
       estaAbierto: determinarSiAbierto(row),
-    }))
+    }
+    })
     return { lugares, raw, sinCoordenadas }
   } catch {
     return { lugares: [] as LugarMapa[], raw: 0, sinCoordenadas: 0 }

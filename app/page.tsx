@@ -2434,7 +2434,7 @@ export default function Home() {
 
   // Opciones para el formulario de nuevo PDV (idénticas al de edición)
   const nuevoPdvOptions = {
-    estadoKiosco: ['Abierto', 'Ahora es Cafeteria', 'Cerrado ahora', 'Abre ocasionalmente', 'Cerrado pero hace reparto', 'Cerrado definitivamente', 'Zona Peligrosa', 'No se encuentra el puesto'],
+    estadoKiosco: ['Abierto', 'Ahora es Cafeteria', 'Abierto pero otro rubro', 'Cerrado ahora', 'Abre ocasionalmente', 'Cerrado pero hace reparto', 'Cerrado definitivamente', 'Zona Peligrosa', 'No se encuentra el puesto'],
     diasAtencion: ['Todos los dias', 'De L a V', 'Sabado y Domingo', '3 veces por semana', '4 veces por Semana'],
     horario: ['Mañana', 'Mañana y Tarde', 'Tarde', 'Solo reparto/Susc.'],
     escaparate: ['Chico', 'Mediano', 'Grande'],
@@ -3135,6 +3135,7 @@ export default function Home() {
                     const estadoKioscoOptions = [
                       'Abierto',
                       'Ahora es Cafeteria',
+                      'Abierto pero otro rubro',
                       'Cerrado ahora',
                       'Abre ocasionalmente',
                       'Cerrado pero hace reparto',

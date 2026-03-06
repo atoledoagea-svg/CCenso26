@@ -81,6 +81,7 @@ const ESTILOS_MAPA = {
 const MARKER_COLORS = {
   abierto: '#4CAF50',                 // Verde
   abiertoCafeteria: '#C4A574',        // Marrón claro (Ahora es Cafeteria)
+  abiertoOtroRubro: '#2C1810',         // Marrón negro (Abierto pero otro rubro)
   cerrado: '#E31837',                 // Rojo Clarín
   cerradoAhora: '#7B1FA2',            // Morado (Cerrado ahora)
   cerradoReparto: '#E91E8C',          // Rosa (Cerrado pero hace reparto)
@@ -567,7 +568,7 @@ function actualizarTextoDropdown(tipo) {
 }
 
 // Opciones de estado que siempre deben aparecer en el filtro (aunque no haya datos aún)
-const ESTADOS_FIJOS_EN_FILTRO = ['Ahora es Cafeteria'];
+const ESTADOS_FIJOS_EN_FILTRO = ['Ahora es Cafeteria', 'Abierto pero otro rubro'];
 
 // Llenar checkboxes dinámicos después de cargar lugares
 function llenarFiltrosDinamicos() {
@@ -631,7 +632,7 @@ function llenarGrupoCheckboxes(containerId, valores, tipo, rootElement) {
   if (!container) return;
   
   const iconos = {
-    estado: { 'Abierto': '✅', 'Ahora es Cafeteria': '☕', 'Cerrado ahora': '🔴', 'Abre ocasionalmente': '🟡', 'Cerrado pero hace reparto': '🛵' },
+    estado: { 'Abierto': '✅', 'Ahora es Cafeteria': '☕', 'Abierto pero otro rubro': '🏪', 'Cerrado ahora': '🔴', 'Abre ocasionalmente': '🟡', 'Cerrado pero hace reparto': '🛵' },
     distribuidora: '🚚',
     dias: '📅',
     horario: '🕐',
@@ -839,11 +840,13 @@ function renderizarMarcadores() {
     const esCerradoAhora = estadoLower.includes('cerrado ahora');
     const noSeEncuentraPuesto = estadoLower.includes('no se encuentra el puesto');
     const esAbiertoCafeteria = estadoLower.includes('ahora es cafeteria');
+    const esAbiertoOtroRubro = estadoLower.includes('abierto pero otro rubro');
     const color = esCerradoDefinitivamente ? MARKER_COLORS.cerradoDefinitivamente :
                   esCerradoPeroHaceReparto ? MARKER_COLORS.cerradoReparto :
                   esCerradoAhora ? MARKER_COLORS.cerradoAhora :
                   noSeEncuentraPuesto ? MARKER_COLORS.noSeEncuentra :
                   esAbiertoCafeteria ? MARKER_COLORS.abiertoCafeteria :
+                  esAbiertoOtroRubro ? MARKER_COLORS.abiertoOtroRubro :
                   lugar.estaAbierto === true ? MARKER_COLORS.abierto :
                   lugar.estaAbierto === false ? MARKER_COLORS.cerrado :
                   MARKER_COLORS.desconocido;
