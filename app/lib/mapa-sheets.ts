@@ -151,7 +151,12 @@ function parseCSV(csvText: string): Record<string, string>[] {
 function determinarSiAbierto(row: Record<string, string>): boolean | null {
   const estado = (row.estado || '').toLowerCase()
   if (estado.includes('cerrado')) return false
+  if (estado.includes('zona peligrosa')) return false
+  if (estado.includes('no se encuentra')) return false
+  // Abierto, Ahora es Cafeteria y Abierto pero otro rubro se consideran "activos" para el mapa
   if (estado === 'abierto') return true
+  if (estado.includes('ahora es cafeteria')) return true
+  if (estado.includes('abierto pero otro rubro')) return true
   return null
 }
 

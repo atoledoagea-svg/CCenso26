@@ -82,7 +82,7 @@ export default function Home() {
   const [saving, setSaving] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [searchType, setSearchType] = useState<'id' | 'paquete'>('id')
-  const [filterRelevado, setFilterRelevado] = useState<'todos' | 'relevados' | 'no_relevados'>('todos')
+  const [filterRelevado, setFilterRelevado] = useState<'todos' | 'relevados' | 'no_relevados' | 'censados_sin_mapear' | 'censados_mapeados'>('todos')
   const [filterPartido, setFilterPartido] = useState<string>('')
   const [filterLocalidad, setFilterLocalidad] = useState<string>('')
   
@@ -135,7 +135,7 @@ export default function Home() {
   const itemsPerPage = 50
   
   // Puesto Activo/Cerrado state
-  const [puestoStatus, setPuestoStatus] = useState<'abierto' | 'cerrado' | 'no_encontrado' | 'zona_peligrosa' | ''>('')
+  const [puestoStatus, setPuestoStatus] = useState<'abierto' | 'cerrado' | 'no_encontrado' | 'zona_peligrosa' | 'cafeteria' | ''>('')
   
   // Autocomplete dropdown states
   const [openAutocomplete, setOpenAutocomplete] = useState<string | null>(null)
@@ -636,7 +636,21 @@ export default function Home() {
       setEditingRow(rowIndex)
       setEditedValues(rowData)
       setOriginalValues(rowData) // Guardar los valores originales del Excel
-      setPuestoStatus('abierto')
+      // Preseleccionar estado según valor actual de Estado Kiosco
+      const headers = sheetData.headers.map((h: string) => h.toLowerCase().trim())
+      const estadoKioscoIdx = headers.findIndex((h: string) => h.includes('estado') && h.includes('kiosco'))
+      const estadoVal = estadoKioscoIdx !== -1 ? String(rowData[estadoKioscoIdx] || '').trim() : ''
+      if (estadoVal === 'Ahora es Cafeteria' || estadoVal === 'ahora es cafeteria') {
+        setPuestoStatus('cafeteria')
+      } else if (estadoVal === 'Cerrado definitivamente') {
+        setPuestoStatus('cerrado')
+      } else if (estadoVal === 'No se encuentra el puesto') {
+        setPuestoStatus('no_encontrado')
+      } else if (estadoVal === 'Zona Peligrosa') {
+        setPuestoStatus('zona_peligrosa')
+      } else {
+        setPuestoStatus('abierto')
+      }
       
       // Cargar imagen existente si hay
       const imgIndex = sheetData.headers.findIndex(h => 
@@ -817,6 +831,18 @@ export default function Home() {
       // Luego solo cambiar el Estado Kiosco a Zona Peligrosa
       if (estadoKioscoIndex !== -1) {
         newValues[estadoKioscoIndex] = 'Zona Peligrosa'
+      }
+      
+      setEditedValues(newValues)
+    } else if (status === 'cafeteria') {
+      // Solo cambiar el Estado Kiosco a "Ahora es Cafeteria", el resto de campos mantienen sus valores
+      const headers = sheetData?.headers.map(h => h.toLowerCase().trim()) || []
+      const estadoKioscoIndex = headers.findIndex(h => h.includes('estado') && h.includes('kiosco'))
+      
+      const newValues = [...editedValues]
+      
+      if (estadoKioscoIndex !== -1) {
+        newValues[estadoKioscoIndex] = 'Ahora es Cafeteria'
       }
       
       setEditedValues(newValues)
@@ -1357,8 +1383,8 @@ export default function Home() {
         camposFaltantes.push({ name: 'Paquete', index: paqueteIndex })
       }
       
-      // Validar campos obligatorios adicionales solo si el puesto está activo
-      if (puestoStatus === 'abierto') {
+      // Validar campos obligatorios adicionales solo si el puesto está activo o es cafeteria
+      if (puestoStatus === 'abierto' || puestoStatus === 'cafeteria') {
         // Buscar índice de Venta productos no editoriales
         const ventaNoEditorialIndex = headers.findIndex(h => 
           h.includes('venta') && h.includes('no editorial')
@@ -1617,6 +1643,15 @@ export default function Home() {
       h === 'localidad / barrio' || h === 'localidad / barrio:' ||
       h === 'barrio' || h === 'barrio:'
     )
+  }
+
+  // Índices de columnas Latitud / Longitud (para filtros censados mapeados / sin mapear)
+  const getLatLngIndexes = () => {
+    if (!sheetData) return { latIndex: -1, lngIndex: -1 }
+    const headers = sheetData.headers.map(h => h.toLowerCase().trim())
+    const latIndex = headers.findIndex(h => h === 'latitud' || h === 'lat')
+    const lngIndex = headers.findIndex(h => h === 'longitud' || h === 'lng' || h === 'long')
+    return { latIndex, lngIndex }
   }
 
   // Normalizar texto a Title Case (primera letra de cada palabra en mayúscula)
@@ -2694,14 +2729,27 @@ export default function Home() {
       }
     }
     
-    // Filtro por estado de relevamiento
+    // Filtro por estado de relevamiento y por coordenadas (censados mapeados / sin mapear)
     if (filterRelevado !== 'todos') {
       const { relevadorIndex } = getAutoFillIndexes()
       const relevadorValue = relevadorIndex !== -1 ? String(row[relevadorIndex] || '').trim() : ''
       const isRelevado = relevadorValue !== ''
+
+      const { latIndex, lngIndex } = getLatLngIndexes()
+      const latStr = (latIndex !== -1 && row[latIndex] != null) ? String(row[latIndex]).trim().replace(',', '.') : ''
+      const lngStr = (lngIndex !== -1 && row[lngIndex] != null) ? String(row[lngIndex]).trim().replace(',', '.') : ''
+      const lat = latStr ? parseFloat(latStr) : NaN
+      const lng = lngStr ? parseFloat(lngStr) : NaN
+      const hasCoords = !isNaN(lat) && !isNaN(lng) && lat !== 0 && lng !== 0
       
       if (filterRelevado === 'relevados' && !isRelevado) return false
       if (filterRelevado === 'no_relevados' && isRelevado) return false
+      if (filterRelevado === 'censados_sin_mapear') {
+        if (!isRelevado || hasCoords) return false
+      }
+      if (filterRelevado === 'censados_mapeados') {
+        if (!isRelevado || !hasCoords) return false
+      }
     }
 
     // Filtro por Partido (case-insensitive)
@@ -3032,6 +3080,13 @@ export default function Home() {
                     >
                       ⚠ Zona Peligrosa
                     </button>
+                    <button
+                      type="button"
+                      className={`puesto-btn puesto-btn-cafeteria ${puestoStatus === 'cafeteria' ? 'active' : ''}`}
+                      onClick={() => handlePuestoStatusChange('cafeteria')}
+                    >
+                      ☕ Cafeteria
+                    </button>
                   </div>
                   {puestoStatus === 'cerrado' && (
                     <div className="puesto-cerrado-notice">
@@ -3049,6 +3104,12 @@ export default function Home() {
                     <div className="puesto-cerrado-notice puesto-peligrosa-notice">
                       <span className="notice-icon">🚨</span>
                       <span>Solo el campo "Estado Kiosco" se ha cambiado a "Zona Peligrosa". El resto de los campos mantienen sus valores originales.</span>
+                    </div>
+                  )}
+                  {puestoStatus === 'cafeteria' && (
+                    <div className="puesto-cerrado-notice puesto-cafeteria-notice">
+                      <span className="notice-icon">☕</span>
+                      <span>El campo "Estado Kiosco" se ha cambiado a "Ahora es Cafeteria". El resto de los campos mantienen sus valores originales.</span>
                     </div>
                   )}
                 </div>
@@ -3130,7 +3191,7 @@ export default function Home() {
                     // Campos obligatorios: Paquete es SIEMPRE obligatorio, los demás solo cuando está abierto
                     const isCampoObligatorioSiempre = isPaqueteField
                     const isCampoObligatorioSoloAbierto = isVentaNoEditorialField || isTelefonoField
-                    const isCampoObligatorio = isCampoObligatorioSiempre || (isCampoObligatorioSoloAbierto && puestoStatus === 'abierto')
+                    const isCampoObligatorio = isCampoObligatorioSiempre || (isCampoObligatorioSoloAbierto && (puestoStatus === 'abierto' || puestoStatus === 'cafeteria'))
                     
                     const estadoKioscoOptions = [
                       'Abierto',
@@ -5748,12 +5809,14 @@ export default function Home() {
             </div>
             <select 
               value={filterRelevado}
-              onChange={(e) => setFilterRelevado(e.target.value as 'todos' | 'relevados' | 'no_relevados')}
+              onChange={(e) => setFilterRelevado(e.target.value as 'todos' | 'relevados' | 'no_relevados' | 'censados_sin_mapear' | 'censados_mapeados')}
               className="filter-relevado-select"
             >
               <option value="todos">📋 Todos los PDV</option>
               <option value="relevados">✅ Solo relevados</option>
               <option value="no_relevados">⏳ Sin relevar</option>
+              <option value="censados_mapeados">📍 Censados Mapeados</option>
+              <option value="censados_sin_mapear">📍 Censados sin Mapear</option>
             </select>
             
             {/* Filtros por ubicación - Desktop */}

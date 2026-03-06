@@ -2290,6 +2290,23 @@ body {
   box-shadow: 0 4px 15px rgba(239, 68, 68, 0.4);
 }
 
+.puesto-btn-cafeteria:hover {
+  border-color: #92400E;
+  color: #B45309;
+}
+
+.puesto-btn-cafeteria.active {
+  background: linear-gradient(135deg, #B45309 0%, #92400E 100%);
+  border-color: #92400E;
+  color: white;
+  box-shadow: 0 4px 15px rgba(180, 83, 9, 0.4);
+}
+
+.puesto-cafeteria-notice {
+  background: #FEF3C7;
+  border-color: #D97706;
+}
+
 .puesto-cerrado-notice {
   display: flex;
   align-items: center;
