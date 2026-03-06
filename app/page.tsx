@@ -31,6 +31,9 @@ declare global {
 // Tipos de roles de usuario
 type UserRole = 'user' | 'supervisor' | 'admin'
 
+// Estado del puesto (selector en modal de edición)
+type PuestoStatusValue = 'abierto' | 'cerrado' | 'no_encontrado' | 'zona_peligrosa' | 'cafeteria'
+
 interface SheetData {
   headers: string[]
   data: any[][]
@@ -135,7 +138,7 @@ export default function Home() {
   const itemsPerPage = 50
   
   // Puesto Activo/Cerrado state
-  const [puestoStatus, setPuestoStatus] = useState<'abierto' | 'cerrado' | 'no_encontrado' | 'zona_peligrosa' | 'cafeteria' | ''>('')
+  const [puestoStatus, setPuestoStatus] = useState<PuestoStatusValue | ''>('')
   
   // Autocomplete dropdown states
   const [openAutocomplete, setOpenAutocomplete] = useState<string | null>(null)
@@ -764,7 +767,7 @@ export default function Home() {
   }
 
   // Manejar cambio de estado del puesto
-  const handlePuestoStatusChange = (status: 'abierto' | 'cerrado' | 'no_encontrado' | 'zona_peligrosa') => {
+  const handlePuestoStatusChange = (status: PuestoStatusValue) => {
     setPuestoStatus(status)
     
     if (status === 'abierto') {
