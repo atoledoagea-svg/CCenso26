@@ -51,6 +51,8 @@ const COLUMN_MAP: Record<string, string> = {
   'LONGITUD': 'longitud',
   'Lat': 'latitud',
   'Lng': 'longitud',
+  'latitude': 'latitud',
+  'longitude': 'longitud',
   'DISPOSITIVO': 'dispositivo',
 }
 
@@ -245,10 +247,12 @@ export async function getLugaresMapa(forceRefresh = false): Promise<LugarMapa[]>
     totalSinCoordenadas += r.sinCoordenadas
     todosLosLugares.push(...r.lugares)
   }
+  // Deduplicar solo cuando es el mismo PDV en varias hojas (mismo id + mismas coords).
+  // No deduplicar por coordenadas solas: así todos los puntos con coords válidas aparecen en el mapa.
   const idsVistos = new Set<string>()
   const lugaresUnicos: LugarMapa[] = []
   for (const lugar of todosLosLugares) {
-    const key = `${lugar.latitud}-${lugar.longitud}`
+    const key = `${lugar.id}-${lugar.latitud}-${lugar.longitud}`
     if (!idsVistos.has(key)) {
       idsVistos.add(key)
       lugaresUnicos.push(lugar)
