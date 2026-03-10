@@ -84,7 +84,7 @@ export default function Home() {
   const [originalValues, setOriginalValues] = useState<any[]>([]) // Valores originales del Excel
   const [saving, setSaving] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
-  const [searchType, setSearchType] = useState<'id' | 'paquete'>('id')
+  const [searchType, setSearchType] = useState<'id' | 'paquete' | 'direccion'>('id')
   const [filterRelevado, setFilterRelevado] = useState<'todos' | 'relevados' | 'no_relevados' | 'censados_sin_mapear' | 'censados_mapeados'>('todos')
   const [filterPartido, setFilterPartido] = useState<string>('')
   const [filterLocalidad, setFilterLocalidad] = useState<string>('')
@@ -160,7 +160,7 @@ export default function Home() {
   const [showMobileStats, setShowMobileStats] = useState(false)
   const [showMobileSearch, setShowMobileSearch] = useState(false)
   const [mobileSearchQuery, setMobileSearchQuery] = useState('')
-  const [mobileSearchType, setMobileSearchType] = useState<'id' | 'paquete'>('id')
+  const [mobileSearchType, setMobileSearchType] = useState<'id' | 'paquete' | 'direccion'>('id')
   const [cameFromMobileSearch, setCameFromMobileSearch] = useState(false)
   const [showNuevoPdvForm, setShowNuevoPdvForm] = useState(false)
   const [savingNuevoPdv, setSavingNuevoPdv] = useState(false)
@@ -1629,6 +1629,13 @@ export default function Home() {
     return headers.findIndex(h => h.includes('paquete'))
   }
 
+  // Get Domicilio/Dirección column index
+  const getDomicilioIndex = () => {
+    if (!sheetData) return -1
+    const headers = sheetData.headers.map(h => h.toLowerCase().trim())
+    return headers.findIndex(h => h.includes('domicilio') || h === 'direccion' || h === 'dirección')
+  }
+
   // Get Partido column index
   const getPartidoIndex = () => {
     if (!sheetData) return -1
@@ -2726,12 +2733,19 @@ export default function Home() {
         // Exact match for ID (first column)
         const rowId = String(row[0] || '').toLowerCase().trim()
         if (rowId !== searchValue) return false
-      } else {
+      } else if (searchType === 'paquete') {
         // Flexible match for Paquete column (contains)
         const paqueteIndex = getPaqueteIndex()
         if (paqueteIndex !== -1) {
           const paqueteValue = String(row[paqueteIndex] || '').toLowerCase().trim()
           if (!paqueteValue.includes(searchValue)) return false
+        }
+      } else if (searchType === 'direccion') {
+        // Búsqueda por Dirección/Domicilio (contains)
+        const domicilioIndex = getDomicilioIndex()
+        if (domicilioIndex !== -1) {
+          const direccionValue = String(row[domicilioIndex] || '').toLowerCase().trim()
+          if (!direccionValue.includes(searchValue)) return false
         }
       }
     }
@@ -5791,15 +5805,20 @@ export default function Home() {
             <div className="search-group">
               <select 
                 value={searchType}
-                onChange={(e) => setSearchType(e.target.value as 'id' | 'paquete')}
+                onChange={(e) => setSearchType(e.target.value as 'id' | 'paquete' | 'direccion')}
                 className="search-select"
               >
                 <option value="id">ID</option>
                 <option value="paquete">Paquete</option>
+                <option value="direccion">Dirección</option>
               </select>
               <input
                 type="text"
-                placeholder={searchType === 'id' ? 'Buscar por ID exacto...' : 'Buscar paquetes que contengan...'}
+                placeholder={
+                  searchType === 'id' ? 'Buscar por ID exacto...' :
+                  searchType === 'paquete' ? 'Buscar paquetes que contengan...' :
+                  'Buscar por dirección...'
+                }
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="search-input"
@@ -6299,6 +6318,12 @@ export default function Home() {
             >
               Por Paquete
             </button>
+            <button 
+              className={`filter-chip ${mobileSearchType === 'direccion' ? 'active' : ''}`}
+              onClick={() => setMobileSearchType('direccion')}
+            >
+              Por Dirección
+            </button>
           </div>
           
           <div className="search-results">
@@ -6321,12 +6346,17 @@ export default function Home() {
               const partidoIdx = getPartidoIndex()
               const localidadIdx = getLocalidadIndex()
               
+              const domicilioIndex = sheetData.headers.findIndex((h: string) =>
+                h.toLowerCase().includes('domicilio') || h.toLowerCase() === 'direccion' || h.toLowerCase() === 'dirección'
+              )
               const results = sheetData.data.filter((row, idx) => {
                 // Filtro por texto
                 if (mobileSearchType === 'id') {
                   if (!String(row[0] || '').toLowerCase().includes(query)) return false
-                } else {
+                } else if (mobileSearchType === 'paquete') {
                   if (paqueteIndex === -1 || !String(row[paqueteIndex] || '').toLowerCase().includes(query)) return false
+                } else if (mobileSearchType === 'direccion') {
+                  if (domicilioIndex === -1 || !String(row[domicilioIndex] || '').toLowerCase().includes(query)) return false
                 }
                 
                 // Filtro por Partido (case-insensitive)
