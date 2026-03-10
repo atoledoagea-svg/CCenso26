@@ -128,7 +128,7 @@ export default function Home() {
   const [loadingSheetIds, setLoadingSheetIds] = useState(false)
   
   // Admin sheet filter state
-  const [adminSelectedSheet, setAdminSelectedSheet] = useState<string>('')
+  const [adminSelectedSheet, setAdminSelectedSheet] = useState<string>('Todos')
   
   // User sheet selection (para usuarios no admin: hoja asignada o ALTA PDV)
   const [userSelectedSheet, setUserSelectedSheet] = useState<string>('')
@@ -397,7 +397,7 @@ export default function Home() {
         console.error('Error getting user info:', e)
       }
       
-      await loadSheetData(token)
+      await loadSheetData(token, 'Todos')
     }
 
     if (window.gapi.client.getToken() === null) {
@@ -437,7 +437,7 @@ export default function Home() {
       })
       .then(data => { if (data?.email) setUserEmail(data.email) })
       .catch(() => { handleSessionExpired() })
-    loadSheetData(storedToken)
+    loadSheetData(storedToken, 'Todos')
   }, [handleSessionExpired, loadSheetData])
 
   // Referencia para controlar el último envío de GPS (evitar spam)
@@ -5178,7 +5178,7 @@ export default function Home() {
                   className="btn-primary"
                   onClick={async () => {
                     if (accessToken) {
-                      await loadSheetData(accessToken)
+                      await loadSheetData(accessToken, adminSelectedSheet || 'Todos')
                       await loadPermissions(accessToken)
                     }
                   }}

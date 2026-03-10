@@ -304,7 +304,7 @@ function findHeaderIndex(headers: string[], ...names: string[]): number {
 
 /**
  * Obtiene los lugares con coordenadas desde el mismo spreadsheet que usa la app (API de Sheets).
- * Así el mapa muestra siempre el mismo total que "Relevados con Coordenadas" en estadísticas.
+ * Se muestran todos los que tienen lat/long válidos, hayan sido relevados o no (ej. "Ahora es cafeteria" aparece igual).
  */
 export async function getLugaresDesdeMainSheet(accessToken: string): Promise<LugarMapa[]> {
   const allData = await getAllDataCombined(accessToken)
@@ -339,12 +339,10 @@ export async function getLugaresDesdeMainSheet(accessToken: string): Promise<Lug
   const idxMayorVenta = findHeaderIndex(headers, 'mayor venta')
   const idxParadaOnline = findHeaderIndex(headers, 'parada online', 'utiliza parada')
 
-  if (idxRelevador === -1 || idxLat === -1 || idxLng === -1) return []
+  if (idxLat === -1 || idxLng === -1) return []
 
   const lugares: LugarMapa[] = []
   for (const row of rows) {
-    const relevador = String(row[idxRelevador] ?? '').trim()
-    if (!relevador) continue
     const lat = parseCoord(row[idxLat] as string | null | undefined)
     const lng = parseCoord(row[idxLng] as string | null | undefined)
     if (isNaN(lat) || isNaN(lng) || lat === 0 || lng === 0) continue
@@ -376,7 +374,7 @@ export async function getLugaresDesdeMainSheet(accessToken: string): Promise<Lug
       suscripciones: get(idxSuscripciones),
       mayor_venta: get(idxMayorVenta),
       usa_parada_online: get(idxParadaOnline),
-      relevado_por: relevador,
+      relevado_por: idxRelevador !== -1 ? get(idxRelevador) : '',
     }
 
     lugares.push({
