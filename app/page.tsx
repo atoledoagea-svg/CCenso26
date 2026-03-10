@@ -1849,7 +1849,7 @@ export default function Home() {
     }
     
     if (headersToUse.length === 0 || dataToAnalyze.length === 0) {
-      return { stats: [], total: 0, relevados: 0, pendientes: 0 }
+      return { stats: [], total: 0, relevados: 0, pendientes: 0, relevadosConCoordenadas: 0 }
     }
     
     const headersLower = headersToUse.map(h => String(h).toLowerCase().trim())
@@ -1858,12 +1858,30 @@ export default function Home() {
     const relevadorIndex = headersLower.findIndex(h => 
       h.includes('relevador') || h.includes('relevado por') || h.includes('censado por')
     )
+    const latIndex = headersLower.findIndex(h => h === 'latitud' || h === 'lat')
+    const lngIndex = headersLower.findIndex(h => h === 'longitud' || h === 'lng' || h === 'long')
+    
+    const parseCoord = (val: unknown): number => {
+      const s = String(val ?? '').trim().replace(',', '.')
+      if (!s) return NaN
+      const n = parseFloat(s)
+      return typeof n === 'number' && !isNaN(n) ? n : NaN
+    }
     
     // Filtrar solo filas relevadas
     const relevadosData = dataToAnalyze.filter(row => {
       if (relevadorIndex === -1) return false
       return String(row[relevadorIndex] || '').trim() !== ''
     })
+    
+    // Relevados que además tienen lat/long válidos (no vacíos, no 0)
+    const relevadosConCoordenadas = latIndex !== -1 && lngIndex !== -1
+      ? relevadosData.filter(row => {
+          const lat = parseCoord(row[latIndex])
+          const lng = parseCoord(row[lngIndex])
+          return !isNaN(lat) && !isNaN(lng) && lat !== 0 && lng !== 0
+        }).length
+      : 0
     
     // Campos a analizar (misma lista que statsFields para consistencia)
     const fieldsToAnalyze = [
@@ -1928,7 +1946,7 @@ export default function Home() {
     const relevados = relevadosData.length
     const pendientes = total - relevados
     
-    return { stats: results, total, relevados, pendientes }
+    return { stats: results, total, relevados, pendientes, relevadosConCoordenadas }
   }
 
   // Descargar estadísticas como CSV/Excel
@@ -5316,7 +5334,7 @@ export default function Home() {
               ) : sheetData.permissions?.isAdmin && Object.keys(allSheetsStats).length > 0 ? (
                 // Vista de admin con estadísticas por hoja
                 (() => {
-                  const { stats, total, relevados, pendientes } = getFieldStatsForSheet(statsSelectedSheet)
+                  const { stats, total, relevados, pendientes, relevadosConCoordenadas } = getFieldStatsForSheet(statsSelectedSheet)
                   
                   return (
                     <>
@@ -5335,6 +5353,10 @@ export default function Home() {
                         <div className="summary-card summary-green">
                           <span className="summary-number">{relevados}</span>
                           <span className="summary-label">Relevados</span>
+                        </div>
+                        <div className="summary-card summary-purple">
+                          <span className="summary-number">{relevadosConCoordenadas ?? 0}</span>
+                          <span className="summary-label">Relevados con Coordenadas</span>
                         </div>
                         <div className="summary-card summary-orange">
                           <span className="summary-number">{pendientes}</span>
@@ -5426,6 +5448,28 @@ export default function Home() {
                       </span>
                       <span className="summary-label">Relevados</span>
                     </div>
+                    <div className="summary-card summary-purple">
+                      <span className="summary-number">
+                        {(() => {
+                          const { relevadorIndex } = getAutoFillIndexes()
+                          const { latIndex, lngIndex } = getLatLngIndexes()
+                          if (relevadorIndex === -1 || latIndex === -1 || lngIndex === -1) return 0
+                          const parseCoord = (val: unknown): number => {
+                            const s = String(val ?? '').trim().replace(',', '.')
+                            if (!s) return NaN
+                            const n = parseFloat(s)
+                            return typeof n === 'number' && !isNaN(n) ? n : NaN
+                          }
+                          return sheetData.data.filter(row => {
+                            if (String(row[relevadorIndex] || '').trim() === '') return false
+                            const lat = parseCoord(row[latIndex])
+                            const lng = parseCoord(row[lngIndex])
+                            return !isNaN(lat) && !isNaN(lng) && lat !== 0 && lng !== 0
+                          }).length
+                        })()}
+                      </span>
+                      <span className="summary-label">Relevados con Coordenadas</span>
+                    </div>
                     <div className="summary-card summary-orange">
                       <span className="summary-number">
                         {sheetData.data.filter(row => {
@@ -5434,6 +5478,19 @@ export default function Home() {
                         }).length}
                       </span>
                       <span className="summary-label">Pendientes</span>
+                    </div>
+                    <div className="summary-card summary-blue">
+                      <span className="summary-number">
+                        {sheetData.data.length > 0
+                          ? Math.round(
+                              (sheetData.data.filter(row => {
+                                const { relevadorIndex } = getAutoFillIndexes()
+                                return relevadorIndex !== -1 && String(row[relevadorIndex] || '').trim() !== ''
+                              }).length / sheetData.data.length) * 100
+                            ) + '%'
+                          : '0%'}
+                      </span>
+                      <span className="summary-label">Progreso</span>
                     </div>
                   </div>
                   

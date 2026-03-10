@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { validateGoogleToken, getAccessTokenFromRequest, getUserRole } from '@/app/lib/auth'
 import { getUserPermissions } from '@/app/lib/sheets'
-import { getLugaresMapa } from '@/app/lib/mapa-sheets'
+import { getLugaresDesdeMainSheet } from '@/app/lib/mapa-sheets'
 
 export const dynamic = 'force-dynamic'
 
@@ -28,7 +28,8 @@ export async function GET(request: NextRequest) {
       )
     }
     const { estado, localidad, partido, distribuidora } = Object.fromEntries(request.nextUrl.searchParams)
-    let lugares = await getLugaresMapa()
+    // Usar el mismo spreadsheet que las estadísticas para que el mapa muestre el mismo total que "Relevados con Coordenadas"
+    let lugares = await getLugaresDesdeMainSheet(accessToken)
     if (estado) {
       const e = estado.toLowerCase()
       if (e === 'abierto') lugares = lugares.filter((l) => l.estaAbierto === true)

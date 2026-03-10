@@ -776,20 +776,21 @@ function aplicarFiltros(lugar) {
 function actualizarEstadisticasRelevados() {
   const elements = document.querySelectorAll('.sidebar-stats');
   if (!elements.length || !lugaresStats) return;
-  const { totalRelevados, enMapa, sinCoordenadas, cerradosExcluidos, duplicadosEliminados } = lugaresStats;
+  const { totalRelevados, totalConCoordenadas, enMapa, sinCoordenadas, cerradosExcluidos, duplicadosEliminados } = lugaresStats;
+  const conCoord = totalConCoordenadas != null ? totalConCoordenadas : enMapa;
   let text = '';
   let title = '';
   if (totalRelevados === 0) {
     text = '';
-  } else if (totalRelevados === enMapa && sinCoordenadas === 0) {
+  } else if (conCoord === enMapa && sinCoordenadas === 0 && (duplicadosEliminados == null || duplicadosEliminados === 0)) {
     text = `${enMapa} relevados con ubicación en el mapa`;
   } else {
-    const partes = [`${totalRelevados} relevados en el sheet`, `${enMapa} con ubicación en el mapa`];
+    const partes = [`${totalRelevados} en el sheet`, `${enMapa} en el mapa`];
     if (sinCoordenadas > 0) partes.push(`${sinCoordenadas} sin coordenadas`);
+    if (duplicadosEliminados > 0) partes.push(`${duplicadosEliminados} en más de una hoja`);
     if (cerradosExcluidos > 0) partes.push(`${cerradosExcluidos} cerrados definitivamente`);
-    if (duplicadosEliminados > 0) partes.push(`${duplicadosEliminados} duplicados`);
     text = partes.join(' · ');
-    title = 'Los relevados sin coordenadas válidas (lat/long) no aparecen en el mapa. Completa latitud y longitud en el sheet para que se muestren.';
+    title = 'El mapa muestra todos los relevados con coordenadas válidas (lat/long). Los que aparecen en más de una hoja se muestran una vez por hoja.';
   }
   elements.forEach(el => {
     el.textContent = text;

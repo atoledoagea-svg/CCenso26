@@ -3711,7 +3711,7 @@ body {
 
 .stats-summary {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
   gap: 1rem;
   margin-bottom: 2rem;
 }
@@ -3732,6 +3732,15 @@ body {
 .summary-card.summary-orange {
   background: #FEF3C7;
   border-color: #FCD34D;
+}
+
+.summary-card.summary-purple {
+  background: #EDE9FE;
+  border-color: #C4B5FD;
+}
+
+.summary-card.summary-purple .summary-number {
+  color: #6D28D9;
 }
 
 .summary-number {

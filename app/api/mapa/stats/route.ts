@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { validateGoogleToken, getAccessTokenFromRequest, getUserRole } from '@/app/lib/auth'
 import { getUserPermissions } from '@/app/lib/sheets'
-import { getLugaresMapa, getLugaresMapaMeta } from '@/app/lib/mapa-sheets'
+import { getLugaresDesdeMainSheet } from '@/app/lib/mapa-sheets'
 
 export const dynamic = 'force-dynamic'
 
@@ -27,19 +27,14 @@ export async function GET(request: NextRequest) {
         { status: 403 }
       )
     }
-    await getLugaresMapa()
-    const meta = getLugaresMapaMeta()
-    if (!meta) {
-      return NextResponse.json({
-        totalRelevados: 0,
-        enMapa: 0,
-        sinCoordenadas: 0,
-      })
-    }
+    const lugares = await getLugaresDesdeMainSheet(accessToken)
+    const total = lugares.length
     return NextResponse.json({
-      totalRelevados: meta.totalRelevados,
-      enMapa: meta.enMapa,
-      sinCoordenadas: meta.sinCoordenadas,
+      totalRelevados: total,
+      totalConCoordenadas: total,
+      enMapa: total,
+      sinCoordenadas: 0,
+      duplicadosEliminados: 0,
     })
   } catch (error: unknown) {
     console.error('Error API mapa/stats:', error)

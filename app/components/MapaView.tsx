@@ -55,15 +55,10 @@ export default function MapaView({ lugares }: { lugares: Lugar[] }) {
         shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
       })
 
-      const GBA_BOUNDS: L.LatLngBoundsLiteral = [
-        [-35.0, -59.0],
-        [-34.3, -58.0],
-      ]
+      // Sin maxBounds: zoom y pan libres en toda el área (evita el problema al sur de Guernica)
       const map = L.map(mapRef.current, {
         zoomControl: false,
-        maxBounds: GBA_BOUNDS,
-        maxBoundsViscosity: 1.0,
-        minZoom: 10,
+        minZoom: 6,
         maxZoom: 19,
       }).setView([-34.65, -58.45], 11)
 

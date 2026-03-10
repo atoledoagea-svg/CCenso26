@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { validateGoogleToken, getAccessTokenFromRequest, getUserRole } from '@/app/lib/auth'
 import { getUserPermissions } from '@/app/lib/sheets'
-import { getLugaresMapa, clearLugaresMapaCache } from '@/app/lib/mapa-sheets'
+import { getLugaresDesdeMainSheet } from '@/app/lib/mapa-sheets'
 
 export const dynamic = 'force-dynamic'
 
@@ -27,9 +27,8 @@ export async function POST(request: NextRequest) {
         { status: 403 }
       )
     }
-    clearLugaresMapaCache()
-    const lugares = await getLugaresMapa(true)
-    return NextResponse.json({ message: 'Cache actualizado', total: lugares.length })
+    const lugares = await getLugaresDesdeMainSheet(accessToken)
+    return NextResponse.json({ message: 'Datos actualizados desde el sheet', total: lugares.length })
   } catch (error: unknown) {
     console.error('Error API mapa/refresh:', error)
     return NextResponse.json(

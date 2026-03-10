@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { validateGoogleToken, getAccessTokenFromRequest, getUserRole } from '@/app/lib/auth'
 import { getUserPermissions } from '@/app/lib/sheets'
-import { getLugaresMapa } from '@/app/lib/mapa-sheets'
+import { getLugaresDesdeMainSheet } from '@/app/lib/mapa-sheets'
 
 export const dynamic = 'force-dynamic'
 
@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
         { status: 403 }
       )
     }
-    const lugares = await getLugaresMapa()
+    const lugares = await getLugaresDesdeMainSheet(accessToken)
     const localidades = [...new Set(lugares.map((l) => l.localidad).filter(Boolean))].sort()
     const partidos = [...new Set(lugares.map((l) => l.partido).filter(Boolean))].sort()
     const distribuidoras = [...new Set(lugares.map((l) => l.distribuidora).filter(Boolean))].sort()

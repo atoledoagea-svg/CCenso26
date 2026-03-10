@@ -3,6 +3,8 @@
  * Misma lógica que el proyecto Map/googleSheets.js, para uso en API routes.
  */
 
+import { getAllDataCombined } from '@/app/lib/sheets'
+
 const HOJAS = [
   { nombre: 'Yamila', gid: '1090663139' },
   { nombre: 'Romina', gid: '822617376' },
@@ -234,7 +236,16 @@ async function fetchLugaresFromHoja(hoja: { nombre: string; gid: string }) {
   }
 }
 
-let cacheData: { list: LugarMapa[]; meta: { totalRelevados: number; enMapa: number; sinCoordenadas: number } } | null = null
+let cacheData: {
+  list: LugarMapa[]
+  meta: {
+    totalRelevados: number
+    totalConCoordenadas: number
+    enMapa: number
+    sinCoordenadas: number
+    duplicadosEliminados: number
+  }
+} | null = null
 let cacheTimestamp = 0
 const CACHE_DURATION = 5 * 60 * 1000 // 5 min
 
@@ -252,23 +263,25 @@ export async function getLugaresMapa(forceRefresh = false): Promise<LugarMapa[]>
     totalSinCoordenadas += r.sinCoordenadas
     todosLosLugares.push(...r.lugares)
   }
-  // Deduplicar solo cuando es el mismo PDV en varias hojas (mismo id + mismas coords).
-  // No deduplicar por coordenadas solas: así todos los puntos con coords válidas aparecen en el mapa.
+  const totalConCoordenadas = todosLosLugares.length
+  // Contar duplicados (mismo id + mismas coords en varias hojas) solo para estadísticas.
   const idsVistos = new Set<string>()
-  const lugaresUnicos: LugarMapa[] = []
+  let duplicadosEliminados = 0
   for (const lugar of todosLosLugares) {
     const key = `${lugar.id}-${lugar.latitud}-${lugar.longitud}`
-    if (!idsVistos.has(key)) {
-      idsVistos.add(key)
-      lugaresUnicos.push(lugar)
-    }
+    if (idsVistos.has(key)) duplicadosEliminados++
+    else idsVistos.add(key)
   }
+  // Devolver todos los que tienen coordenadas (sin quitar duplicados) para que el mapa muestre
+  // el mismo número que las estadísticas "relevados con coordenadas" (380 = 380).
   cacheData = {
-    list: lugaresUnicos,
+    list: todosLosLugares,
     meta: {
       totalRelevados,
-      enMapa: lugaresUnicos.length,
+      totalConCoordenadas,
+      enMapa: todosLosLugares.length,
       sinCoordenadas: totalSinCoordenadas,
+      duplicadosEliminados,
     },
   }
   cacheTimestamp = now
@@ -277,6 +290,129 @@ export async function getLugaresMapa(forceRefresh = false): Promise<LugarMapa[]>
 
 export function getLugaresMapaMeta() {
   return cacheData ? cacheData.meta : null
+}
+
+/** Índice de columna por header normalizado (minúsculas, sin espacios extra) */
+function findHeaderIndex(headers: string[], ...names: string[]): number {
+  const lower = headers.map((h) => String(h ?? '').trim().toLowerCase())
+  for (const name of names) {
+    const i = lower.findIndex((h) => h === name || h.includes(name))
+    if (i !== -1) return i
+  }
+  return -1
+}
+
+/**
+ * Obtiene los lugares con coordenadas desde el mismo spreadsheet que usa la app (API de Sheets).
+ * Así el mapa muestra siempre el mismo total que "Relevados con Coordenadas" en estadísticas.
+ */
+export async function getLugaresDesdeMainSheet(accessToken: string): Promise<LugarMapa[]> {
+  const allData = await getAllDataCombined(accessToken)
+  if (!allData.length) return []
+  const headers = (allData[0] || []).map((c: unknown) => String(c ?? '').trim())
+  const rows = allData.slice(1) as unknown[][]
+
+  const idxId = findHeaderIndex(headers, 'id')
+  const idxRelevador = findHeaderIndex(headers, 'relevado por', 'relevador', 'censado por')
+  const idxLat = findHeaderIndex(headers, 'latitud', 'lat')
+  const idxLng = findHeaderIndex(headers, 'longitud', 'lng', 'long')
+  const idxPaquete = findHeaderIndex(headers, 'paquete')
+  const idxDomicilio = findHeaderIndex(headers, 'domicilio', 'direccion', 'dirección')
+  const idxEstado = findHeaderIndex(headers, 'estado kiosco', 'estado')
+  const idxPartido = findHeaderIndex(headers, 'partido')
+  const idxLocalidad = findHeaderIndex(headers, 'localidad', 'localidad / barrio', 'barrio')
+  const idxProvincia = findHeaderIndex(headers, 'provincia')
+  const idxTelefono = findHeaderIndex(headers, 'teléfono', 'telefono')
+  const idxEmail = findHeaderIndex(headers, 'correo', 'email')
+  const idxContacto = findHeaderIndex(headers, 'nombre y apellido', 'contacto')
+  const idxDias = findHeaderIndex(headers, 'dias de atención', 'dias de atencion')
+  const idxHorario = findHeaderIndex(headers, 'horario')
+  const idxDistribuidora = findHeaderIndex(headers, 'distribuidora')
+  const idxNumVendedor = findHeaderIndex(headers, 'n° vendedor', 'vendedor')
+  const idxImagen = findHeaderIndex(headers, 'img', 'imagen')
+  const idxEscaparate = findHeaderIndex(headers, 'escaparate')
+  const idxUbicacion = findHeaderIndex(headers, 'ubicación', 'ubicacion')
+  const idxFachada = findHeaderIndex(headers, 'fachada')
+  const idxVentaNoEdit = findHeaderIndex(headers, 'venta productos no editoriales', 'venta no editorial')
+  const idxReparto = findHeaderIndex(headers, 'reparto')
+  const idxSuscripciones = findHeaderIndex(headers, 'suscripciones')
+  const idxMayorVenta = findHeaderIndex(headers, 'mayor venta')
+  const idxParadaOnline = findHeaderIndex(headers, 'parada online', 'utiliza parada')
+
+  if (idxRelevador === -1 || idxLat === -1 || idxLng === -1) return []
+
+  const lugares: LugarMapa[] = []
+  for (const row of rows) {
+    const relevador = String(row[idxRelevador] ?? '').trim()
+    if (!relevador) continue
+    const lat = parseCoord(row[idxLat])
+    const lng = parseCoord(row[idxLng])
+    if (isNaN(lat) || isNaN(lng) || lat === 0 || lng === 0) continue
+
+    const get = (i: number) => (i !== -1 && row[i] != null ? String(row[i]).trim() : '')
+    const estado = get(idxEstado) || 'Abierto'
+    const rowId = idxId !== -1 ? get(idxId) : String(row[0] ?? '').trim()
+    const rowObj: Record<string, string> = {
+      id: rowId || Math.random().toString(36).substring(2, 11),
+      paquete: get(idxPaquete),
+      direccion: get(idxDomicilio),
+      estado,
+      partido: get(idxPartido),
+      localidad: get(idxLocalidad),
+      provincia: get(idxProvincia),
+      telefono: get(idxTelefono),
+      email: get(idxEmail),
+      contacto_nombre: get(idxContacto),
+      dias_atencion: get(idxDias),
+      horario: get(idxHorario),
+      distribuidora: get(idxDistribuidora),
+      num_vendedor: get(idxNumVendedor),
+      imagen: get(idxImagen),
+      escaparate: get(idxEscaparate),
+      ubicacion: get(idxUbicacion),
+      fachada: get(idxFachada),
+      venta_no_editorial: get(idxVentaNoEdit),
+      reparto: get(idxReparto),
+      suscripciones: get(idxSuscripciones),
+      mayor_venta: get(idxMayorVenta),
+      usa_parada_online: get(idxParadaOnline),
+      relevado_por: relevador,
+    }
+
+    lugares.push({
+      id: rowObj.id,
+      nombre: rowObj.paquete || 'Sin nombre',
+      paquete: rowObj.paquete || '',
+      tipo: 'kiosco',
+      descripcion: [rowObj.ubicacion, rowObj.escaparate, rowObj.fachada].filter(Boolean).join(' - '),
+      latitud: lat,
+      longitud: lng,
+      direccion: rowObj.direccion || '',
+      localidad: rowObj.localidad || '',
+      partido: rowObj.partido || '',
+      provincia: rowObj.provincia || '',
+      telefono: rowObj.telefono || '',
+      email: rowObj.email || '',
+      contacto_nombre: rowObj.contacto_nombre || '',
+      dias_atencion: rowObj.dias_atencion || '',
+      horario: rowObj.horario || '',
+      estado: rowObj.estado || 'Abierto',
+      distribuidora: rowObj.distribuidora || '',
+      num_vendedor: rowObj.num_vendedor || '',
+      imagen: rowObj.imagen || '',
+      escaparate: rowObj.escaparate || '',
+      ubicacion: rowObj.ubicacion || '',
+      fachada: rowObj.fachada || '',
+      venta_no_editorial: rowObj.venta_no_editorial || '',
+      reparto: rowObj.reparto || '',
+      suscripciones: rowObj.suscripciones || '',
+      mayor_venta: rowObj.mayor_venta || '',
+      usa_parada_online: rowObj.usa_parada_online || '',
+      relevado_por: rowObj.relevado_por || '',
+      estaAbierto: determinarSiAbierto(rowObj),
+    })
+  }
+  return lugares
 }
 
 export function clearLugaresMapaCache() {
