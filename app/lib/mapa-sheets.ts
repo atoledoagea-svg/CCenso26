@@ -345,8 +345,8 @@ export async function getLugaresDesdeMainSheet(accessToken: string): Promise<Lug
   for (const row of rows) {
     const relevador = String(row[idxRelevador] ?? '').trim()
     if (!relevador) continue
-    const lat = parseCoord(row[idxLat])
-    const lng = parseCoord(row[idxLng])
+    const lat = parseCoord(row[idxLat] as string | null | undefined)
+    const lng = parseCoord(row[idxLng] as string | null | undefined)
     if (isNaN(lat) || isNaN(lng) || lat === 0 || lng === 0) continue
 
     const get = (i: number) => (i !== -1 && row[i] != null ? String(row[i]).trim() : '')

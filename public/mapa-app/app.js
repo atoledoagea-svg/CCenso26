@@ -18,6 +18,8 @@ let filtros = { localidades: [], partidos: [], distribuidoras: [] };
 let tileLayer = null;
 let estiloMapa = 'claro';
 let lugaresStats = null;
+// Vista de marcadores: 'iconos' (clásico 🏪/☕) o 'rapida' (círculos, menos lag)
+let mapaVistaIconos = true;
 
 const API_BASE = '/api/mapa';
 /**
@@ -124,7 +126,13 @@ document.addEventListener('DOMContentLoaded', () => {
   if (modoGuardado) {
     cambiarModo(modoGuardado);
   }
-  
+  const vistaMarcadoresGuardada = localStorage.getItem('mapaVistaMarcadores');
+  if (vistaMarcadoresGuardada === 'rapida' || vistaMarcadoresGuardada === 'iconos') {
+    mapaVistaIconos = vistaMarcadoresGuardada === 'iconos';
+    document.getElementById('btn-vista-iconos')?.classList.toggle('active', mapaVistaIconos);
+    document.getElementById('btn-vista-rapida')?.classList.toggle('active', !mapaVistaIconos);
+  }
+
   // Cargar filtros desde URL si existen
   cargarFiltrosDesdeURL();
   
@@ -158,10 +166,10 @@ function initMap() {
     // Centrar en Buenos Aires / Avellaneda con límites
     map = L.map('map', {
       zoomControl: false,
-      maxBounds: GBA_BOUNDS,        // No permite salir del GBA
-      maxBoundsViscosity: 1.0,      // Rebote suave en los bordes
-      minZoom: 10,                  // Zoom mínimo (no se puede alejar mucho)
-      maxZoom: 19                   // Zoom máximo
+      maxBounds: GBA_BOUNDS,
+      maxBoundsViscosity: 1.0,
+      minZoom: 10,
+      maxZoom: 19
     }).setView([-34.65, -58.45], 11);
 
     // Controles de zoom
@@ -809,8 +817,34 @@ function renderizarLugares() {
   }
 }
 
+// Vista marcadores: iconos = DOM (L.marker + divIcon), rapida = L.circleMarker + viewport culling
+var _moveEndDebounce = null;
+var _lugaresFiltradosCache = [];
+var _primeraCargaMarcadores = true;
+
+function colorParaLugar(lugar) {
+  var estadoLower = (lugar.estado || '').toLowerCase();
+  if (estadoLower.includes('cerrado definitivamente')) return MARKER_COLORS.cerradoDefinitivamente;
+  if (estadoLower.includes('cerrado pero hace reparto')) return MARKER_COLORS.cerradoReparto;
+  if (estadoLower.includes('cerrado ahora')) return MARKER_COLORS.cerradoAhora;
+  if (estadoLower.includes('no se encuentra el puesto')) return MARKER_COLORS.noSeEncuentra;
+  if (estadoLower.includes('ahora es cafeteria')) return MARKER_COLORS.abiertoCafeteria;
+  if (estadoLower.includes('abierto pero otro rubro')) return MARKER_COLORS.abiertoOtroRubro;
+  if (lugar.estaAbierto === true) return MARKER_COLORS.abierto;
+  if (lugar.estaAbierto === false) return MARKER_COLORS.cerrado;
+  return MARKER_COLORS.desconocido;
+}
+
+function cambiarVistaMarcadores(modo) {
+  mapaVistaIconos = modo === 'iconos';
+  localStorage.setItem('mapaVistaMarcadores', mapaVistaIconos ? 'iconos' : 'rapida');
+  document.getElementById('btn-vista-iconos').classList.toggle('active', mapaVistaIconos);
+  document.getElementById('btn-vista-rapida').classList.toggle('active', !mapaVistaIconos);
+  _primeraCargaMarcadores = true;
+  renderizarMarcadores();
+}
+
 function renderizarMarcadores() {
-  // Verificar que el mapa esté inicializado
   if (!map) {
     _warn('Mapa no inicializado, intentando inicializar...');
     initMap();
@@ -820,8 +854,7 @@ function renderizarMarcadores() {
     }
   }
 
-  // Limpiar marcadores existentes
-  markers.forEach(marker => {
+  markers.forEach(function (marker) {
     try {
       map.removeLayer(marker);
     } catch (e) {
@@ -830,56 +863,79 @@ function renderizarMarcadores() {
   });
   markers = [];
 
-  const lugaresFiltrados = lugares.filter(aplicarFiltros);
+  _lugaresFiltradosCache = lugares.filter(aplicarFiltros);
+  var lista = _lugaresFiltradosCache;
 
-  lugaresFiltrados.forEach(lugar => {
+  if (!mapaVistaIconos) {
+    // Vista rápida: solo marcadores en vista (menos lag)
+    if (!_primeraCargaMarcadores && _lugaresFiltradosCache.length > 100) {
+      var bounds = map.getBounds();
+      if (bounds && bounds.pad) {
+        bounds = bounds.pad(0.2);
+        lista = _lugaresFiltradosCache.filter(function (l) {
+          if (!l.latitud || !l.longitud) return false;
+          return bounds.contains([l.latitud, l.longitud]);
+        });
+      }
+      if (lista.length > 350) lista = lista.slice(0, 350);
+    } else {
+      _primeraCargaMarcadores = false;
+    }
+  } else {
+    _primeraCargaMarcadores = false;
+  }
+
+  lista.forEach(function (lugar) {
     if (!lugar.latitud || !lugar.longitud) return;
+    var color = colorParaLugar(lugar);
+    var marker;
 
-    const estadoLower = (lugar.estado || '').toLowerCase();
-    const esCerradoDefinitivamente = estadoLower.includes('cerrado definitivamente');
-    const esCerradoPeroHaceReparto = estadoLower.includes('cerrado pero hace reparto');
-    const esCerradoAhora = estadoLower.includes('cerrado ahora');
-    const noSeEncuentraPuesto = estadoLower.includes('no se encuentra el puesto');
-    const esAbiertoCafeteria = estadoLower.includes('ahora es cafeteria');
-    const esAbiertoOtroRubro = estadoLower.includes('abierto pero otro rubro');
-    const color = esCerradoDefinitivamente ? MARKER_COLORS.cerradoDefinitivamente :
-                  esCerradoPeroHaceReparto ? MARKER_COLORS.cerradoReparto :
-                  esCerradoAhora ? MARKER_COLORS.cerradoAhora :
-                  noSeEncuentraPuesto ? MARKER_COLORS.noSeEncuentra :
-                  esAbiertoCafeteria ? MARKER_COLORS.abiertoCafeteria :
-                  esAbiertoOtroRubro ? MARKER_COLORS.abiertoOtroRubro :
-                  lugar.estaAbierto === true ? MARKER_COLORS.abierto :
-                  lugar.estaAbierto === false ? MARKER_COLORS.cerrado :
-                  MARKER_COLORS.desconocido;
+    if (mapaVistaIconos) {
+      // Vista clásica: L.marker + divIcon (DOM)
+      var esAbiertoCafeteria = (lugar.estado || '').toLowerCase().includes('ahora es cafeteria');
+      var markerIcon = esAbiertoCafeteria ? '☕' : '🏪';
+      var customIcon = L.divIcon({
+        className: 'custom-marker-container',
+        html: '<div class="custom-marker" style="background:' + color + '"><span class="custom-marker-inner">' + markerIcon + '</span></div>',
+        iconSize: [36, 36],
+        iconAnchor: [18, 36],
+        popupAnchor: [0, -36]
+      });
+      marker = L.marker([lugar.latitud, lugar.longitud], { icon: customIcon });
+    } else {
+      // Vista rápida: L.circleMarker
+      marker = L.circleMarker([lugar.latitud, lugar.longitud], {
+        radius: 8,
+        fillColor: color,
+        color: '#fff',
+        weight: 1.5,
+        opacity: 1,
+        fillOpacity: 0.95
+      });
+    }
 
-    const markerIcon = esAbiertoCafeteria ? '☕' : '🏪';
-    // Crear icono personalizado
-    const customIcon = L.divIcon({
-      className: 'custom-marker-container',
-      html: `
-        <div class="custom-marker" style="background: ${color}">
-          <span class="custom-marker-inner">${markerIcon}</span>
-        </div>
-      `,
-      iconSize: [36, 36],
-      iconAnchor: [18, 36],
-      popupAnchor: [0, -36]
-    });
-
-    const marker = L.marker([lugar.latitud, lugar.longitud], { icon: customIcon })
-      .addTo(map)
-      .bindPopup(crearPopupContent(lugar));
-
+    marker.addTo(map).bindPopup(crearPopupContent(lugar));
     marker.lugarId = lugar.id;
-
-    marker.on('click', () => {
+    marker._lugar = lugar;
+    marker.on('click', function () {
       lugarSeleccionado = lugar.id;
       renderizarLugares();
       scrollToLugar(lugar.id);
     });
-
     markers.push(marker);
   });
+
+  if (!mapaVistaIconos && !map._mapaOptimizado) {
+    map._mapaOptimizado = true;
+    map.on('moveend', function () {
+      clearTimeout(_moveEndDebounce);
+      _moveEndDebounce = setTimeout(renderizarMarcadores, 80);
+    });
+    map.on('zoomend', function () {
+      clearTimeout(_moveEndDebounce);
+      _moveEndDebounce = setTimeout(renderizarMarcadores, 80);
+    });
+  }
 }
 
 function crearPopupContent(lugar) {
@@ -910,13 +966,11 @@ function crearPopupContent(lugar) {
 
 function ajustarVistaAMarcadores() {
   if (markers.length === 0) return;
-  
-  const group = new L.featureGroup(markers);
-  const bounds = group.getBounds();
-  
-  // Si hay pocos marcadores, hacer más zoom
-  const maxZoom = markers.length <= 5 ? 16 : markers.length <= 15 ? 15 : 14;
-  
+
+  var group = L.featureGroup(markers);
+  var bounds = group.getBounds();
+  var maxZoom = markers.length <= 5 ? 16 : markers.length <= 15 ? 15 : 14;
+
   map.fitBounds(bounds.pad(0.1), {
     maxZoom: maxZoom,
     animate: true,
@@ -940,15 +994,12 @@ function seleccionarLugar(id) {
   lugarSeleccionado = id;
   renderizarLugares();
   
-  const lugar = lugares.find(l => l.id == id);
+  var lugar = lugares.find(function (l) { return l.id == id; });
   if (lugar && lugar.latitud && lugar.longitud) {
     map.setView([lugar.latitud, lugar.longitud], 17);
-    
-    // Abrir popup del marcador
-    const marker = markers.find(m => m.lugarId == id);
-    if (marker) {
-      marker.openPopup();
-    }
+
+    var marker = markers.find(function (m) { return m.lugarId == id; });
+    if (marker) marker.openPopup();
   }
 }
 
@@ -1152,12 +1203,9 @@ function seleccionarSugerencia(id) {
   // Centrar en el lugar
   if (lugar.latitud && lugar.longitud) {
     map.setView([lugar.latitud, lugar.longitud], 17, { animate: true });
-    
-    // Buscar y abrir el popup del marcador
-    const marker = markers.find(m => m.lugarId == id);
-    if (marker) {
-      marker.openPopup();
-    }
+
+    var marker = markers.find(function (m) { return m.lugarId == id; });
+    if (marker) marker.openPopup();
   }
   
   // Aplicar filtro
@@ -2421,6 +2469,7 @@ function exportarExcel() {
 // Exponer funciones globalmente
 window.seleccionarLugar = seleccionarLugar;
 window.cambiarModo = cambiarModo;
+window.cambiarVistaMarcadores = cambiarVistaMarcadores;
 window.limpiarFiltros = limpiarFiltros;
 window.toggleCategory = toggleCategory;
 window.toggleChip = toggleChip;

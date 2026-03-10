@@ -1384,6 +1384,27 @@ body.dark-mode .theme-toggle {
   border-color: var(--border);
 }
 
+.marker-view-toggle {
+  display: flex;
+  gap: 4px;
+  background: #ffffff;
+  border-radius: var(--radius);
+  padding: 4px;
+  box-shadow: var(--shadow);
+  border: 1px solid var(--border);
+  margin-top: 8px;
+}
+
+body.dark-mode .marker-view-toggle {
+  background: var(--bg-dark);
+  border-color: var(--border);
+}
+
+.marker-view-toggle .theme-btn.active {
+  background: var(--clarin-red);
+  box-shadow: 0 2px 8px rgba(227, 24, 55, 0.3);
+}
+
 .theme-btn {
   width: 40px;
   height: 40px;
