@@ -7,7 +7,7 @@ import 'leaflet/dist/leaflet.css'
 const MARKER_COLORS: Record<string, string> = {
   abierto: '#4CAF50',
   abiertoCafeteria: '#C4A574', // Marrón claro: Ahora es Cafeteria
-  abiertoOtroRubro: '#2C1810', // Marrón negro: Abierto pero otro rubro
+  abiertoOtroRubro: '#2C1810', // Marrón negro: Activo pero otro rubro
   cerrado: '#E31837',
   cerradoDefinitivamente: '#E31837', // Rojo: Cerrado definitivamente
   cerradoAhora: '#7B1FA2', // Morado: Cerrado ahora

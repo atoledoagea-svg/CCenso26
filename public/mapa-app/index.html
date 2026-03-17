@@ -264,6 +264,14 @@
     </div>
   </div>
 
+  <!-- Overlay para popup de ubicación expandido a pantalla completa -->
+  <div class="popup-expandido-overlay" id="popup-expandido-overlay" style="display: none;" onclick="if(event.target === this) cerrarPopupExpandido()">
+    <div class="popup-expandido-panel" onclick="event.stopPropagation()">
+      <button type="button" class="popup-desexpandir-btn" onclick="cerrarPopupExpandido()" title="Desexpandir">✕</button>
+      <div id="popup-expandido-content"></div>
+    </div>
+  </div>
+
   <div class="custom-popup-overlay" id="custom-popup-overlay" style="display: none;">
     <div class="custom-popup">
       <div class="custom-popup-icon">✅</div>

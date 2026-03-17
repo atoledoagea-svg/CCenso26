@@ -5540,21 +5540,253 @@ body {
   border-color: #2563eb;
 }
 
-/* ================================================
-   MODAL DE SELECTOR DE MAPA
-   ================================================ */
+/* ========== MODAL SELECCIÓN DE UBICACIÓN ========== */
 
+/* --- Base: contenedor y estado normal --- */
 .modal-content.modal-map {
   max-width: 700px;
   width: 95vw;
+  max-height: 90vh;
+}
+.modal-content.modal-map:not(.modal-map-expanded) {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.modal-content.modal-map:not(.modal-map-expanded) .map-body {
+  flex: none;
+  overflow-y: auto;
+}
+.modal-content.modal-map:not(.modal-map-expanded) .map-container {
+  flex: none;
+  height: 350px;
+  min-height: 250px;
 }
 
+/* --- Header (título + hint + acciones) --- */
+.modal-content.modal-map .modal-map-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--gray-200, #e5e7eb);
+  background: var(--white, #fff);
+}
+.modal-content.modal-map .modal-map-header-text { flex: 1; min-width: 0; }
+.modal-content.modal-map .modal-map-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text-primary, #111);
+  margin: 0 0 0.25rem 0;
+}
+.modal-content.modal-map .modal-map-header-hint {
+  font-size: 0.8rem;
+  color: var(--gray-500, #6b7280);
+  margin: 0;
+  line-height: 1.35;
+}
+.modal-content.modal-map .modal-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+.btn-map-expand-toggle {
+  padding: 0.5rem;
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border, #ddd);
+  border-radius: 8px;
+  background: var(--bg-card, #fff);
+  color: var(--text-primary, #333);
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s, color 0.2s;
+}
+.btn-map-expand-toggle .btn-expand-icon { font-size: 1.1rem; line-height: 1; }
+.btn-map-expand-toggle:hover {
+  background: var(--bg-input, #f5f5f5);
+  border-color: var(--accent, #0066cc);
+  color: var(--accent, #0066cc);
+}
+
+/* --- Cuerpo del modal (map-body) --- */
 .map-body {
   display: flex;
   flex-direction: column;
   gap: 1rem;
   position: relative;
 }
+
+/* --- Estado EXPANDIDO: overlay + grid (mapa ocupa todo el alto disponible) --- */
+.modal-map-expanded-overlay {
+  padding: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  justify-content: stretch !important;
+  height: 100vh !important;
+  height: 100dvh !important;
+  min-height: 100vh !important;
+  min-height: 100dvh !important;
+}
+.modal-map-expanded-overlay > .modal-content {
+  flex: 1 1 0 !important;
+  min-height: 0 !important;
+}
+.modal-content.modal-map.modal-map-expanded {
+  width: 100%;
+  height: 100% !important;
+  min-height: 0 !important;
+  max-width: none;
+  max-height: none;
+  border-radius: 0;
+  display: grid !important;
+  grid-template-rows: min-content 1fr min-content;
+  gap: 0;
+  overflow: hidden;
+}
+.modal-content.modal-map.modal-map-expanded .modal-header {
+  grid-row: 1;
+  padding: 0.2rem 0.6rem 0.25rem;
+}
+.modal-content.modal-map.modal-map-expanded .modal-map-title {
+  font-size: 1rem;
+  margin: 0 0 0.1rem 0;
+}
+.modal-content.modal-map.modal-map-expanded .modal-map-header-hint {
+  font-size: 0.7rem;
+  line-height: 1.25;
+}
+.modal-content.modal-map.modal-map-expanded .map-body {
+  grid-row: 2;
+  min-height: 0;
+  height: 100%;
+  max-height: none !important; /* anula .modal-body { max-height: 60vh } */
+  padding: 0;
+  overflow: hidden;
+  position: relative;
+  align-self: stretch;
+  display: block; /* evita que flex colapse cuando los hijos son absolute */
+}
+.modal-content.modal-map.modal-map-expanded .map-body .map-below-row {
+  display: none !important;
+}
+
+/* Expandido: búsqueda flotante (compacta) */
+.modal-content.modal-map.modal-map-expanded .map-body .address-search {
+  position: absolute;
+  inset: 0 0 auto 0;
+  z-index: 2;
+  padding: 0.15rem 0.5rem 0.2rem;
+  margin: 0;
+  display: flex;
+  gap: 0.35rem;
+  background: #fff;
+  border-bottom: 1px solid #e5e7eb;
+}
+.modal-content.modal-map.modal-map-expanded .map-body .address-search input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.3rem 0.5rem;
+  font-size: 0.85rem;
+}
+.modal-content.modal-map.modal-map-expanded .map-body .btn-search-address {
+  padding: 0.3rem 0.6rem;
+  font-size: 0.8rem;
+  flex-shrink: 0;
+}
+
+/* Expandido: mapa a pantalla completa */
+.modal-content.modal-map.modal-map-expanded .map-container {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  overflow: hidden;
+  border-radius: 0;
+}
+.modal-content.modal-map.modal-map-expanded .map-container > div {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+}
+.modal-content.modal-map.modal-map-expanded .map-container .leaflet-container {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 100% !important;
+}
+
+/* Expandido: pie compacto (coords + botones) para maximizar mapa */
+.modal-content.modal-map.modal-map-expanded .map-actions-fixed {
+  grid-row: 3;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.75rem;
+  padding: 0.2rem 0.6rem 0.25rem;
+  background: #fff;
+  border-top: 1px solid #e5e7eb;
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.04);
+}
+.modal-content.modal-map.modal-map-expanded .map-actions-fixed .map-below-row-in-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.6rem;
+  padding: 0;
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+}
+.modal-content.modal-map.modal-map-expanded .map-actions-fixed .map-below-row-in-footer .map-click-hint {
+  font-size: 0.7rem;
+  padding: 0;
+  margin: 0;
+}
+.modal-content.modal-map.modal-map-expanded .map-actions-fixed .map-below-row-in-footer .coords-display {
+  padding: 0;
+  font-size: 0.75rem;
+  margin: 0;
+}
+.modal-content.modal-map.modal-map-expanded .map-actions-fixed .map-actions-buttons {
+  display: flex;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+.modal-content.modal-map.modal-map-expanded .map-actions-fixed .btn-cancel-red,
+.modal-content.modal-map.modal-map-expanded .map-actions-fixed .btn-accept-green {
+  flex: 0 1 auto;
+  min-height: 32px;
+  padding: 0.35rem 0.65rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border-radius: 6px;
+}
+.modal-content.modal-map.modal-map-expanded .map-actions-fixed .btn-cancel-red {
+  background: #fff;
+  color: #dc2626;
+  border: 1.5px solid #dc2626;
+}
+.modal-content.modal-map.modal-map-expanded .map-actions-fixed .btn-cancel-red:hover { background: #fef2f2; }
+.modal-content.modal-map.modal-map-expanded .map-actions-fixed .btn-accept-green {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: #fff;
+  border: none;
+  box-shadow: 0 1px 4px rgba(16, 185, 129, 0.3);
+}
+.modal-content.modal-map.modal-map-expanded .map-actions-fixed .btn-accept-green:hover {
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.35);
+}
+
+.map-below-row { display: block; }
 
 /* Popup de advertencia de ubicación - OBLIGATORIO */
 .location-warning-overlay {
@@ -5677,15 +5909,15 @@ body {
 }
 
 .map-click-hint {
-  background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
-  color: #1d4ed8;
+  background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%);
+  color: #c2410c;
   font-size: 0.85rem;
   text-align: center;
   margin: 0.5rem 0;
   padding: 0.5rem 1rem;
   border-radius: 8px;
   font-weight: 500;
-  border: 1px solid #93c5fd;
+  border: 1px solid #fdba74;
 }
 
 .map-container {
@@ -6118,16 +6350,25 @@ body {
   background: #059669;
 }
 
-/* Mobile adjustments for location modal */
+/* Mobile adjustments for location modal (expandir solo en desktop) */
 @media (max-width: 768px) {
-  /* Forzar centrado del modal de mapa */
-  .modal-overlay:has(.modal-map) {
+  .modal-content.modal-map .btn-map-expand-toggle {
+    display: none !important;
+  }
+  /* Forzar centrado del modal de mapa (solo cuando NO está expandido) */
+  .modal-overlay:has(.modal-map):not(.modal-map-expanded-overlay) {
     align-items: center !important;
     justify-content: center !important;
     padding: 0.5rem !important;
   }
+  /* Expandido: overlay sigue estirando para que los botones queden abajo */
+  .modal-map-expanded-overlay {
+    align-items: stretch !important;
+    justify-content: stretch !important;
+    padding: 0 !important;
+  }
   
-  .modal-content.modal-map {
+  .modal-content.modal-map:not(.modal-map-expanded) {
     max-height: 95vh;
     margin: auto;
     width: calc(100% - 1rem);
@@ -6135,6 +6376,13 @@ body {
     border-radius: 16px !important;
     display: flex;
     flex-direction: column;
+  }
+  
+  .modal-content.modal-map.modal-map-expanded {
+    max-height: none;
+    margin: 0;
+    width: 100%;
+    border-radius: 0;
   }
   
   .modal-content.modal-map .modal-header {
@@ -6182,16 +6430,6 @@ body {
   .modal-content.modal-map .location-warning-close {
     padding: 0.75rem 1rem;
     font-size: 1rem;
-  }
-  
-  .modal-content.modal-map .map-instructions {
-    font-size: 0.8rem;
-    margin-bottom: 0.25rem;
-  }
-  
-  .modal-content.modal-map .map-instructions-hint {
-    font-size: 0.7rem;
-    margin-bottom: 0.5rem;
   }
   
   .modal-content.modal-map .address-search {

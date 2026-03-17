@@ -8,9 +8,10 @@ interface MapPickerProps {
   initialLat: number
   initialLng: number
   onCoordsChange: (lat: number, lng: number) => void
+  expanded?: boolean
 }
 
-export default function MapPicker({ initialLat, initialLng, onCoordsChange }: MapPickerProps) {
+export default function MapPicker({ initialLat, initialLng, onCoordsChange, expanded }: MapPickerProps) {
   const mapRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<L.Map | null>(null)
   const markerRef = useRef<L.Marker | null>(null)
@@ -78,6 +79,15 @@ export default function MapPicker({ initialLat, initialLng, onCoordsChange }: Ma
       }
     }
   }, [initialLat, initialLng, isLoaded])
+
+  // Recalcular tamaño del mapa cuando el modal se expande/desexpande
+  useEffect(() => {
+    if (!mapInstanceRef.current || !expanded) return
+    const t = setTimeout(() => {
+      mapInstanceRef.current?.invalidateSize()
+    }, 150)
+    return () => clearTimeout(t)
+  }, [expanded])
 
   return (
     <div 

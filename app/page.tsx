@@ -1069,12 +1069,28 @@ export default function Home() {
   const [addressSearch, setAddressSearch] = useState('')
   const [searchingAddress, setSearchingAddress] = useState(false)
   const [showLocationWarning, setShowLocationWarning] = useState(false)
+  const [mapPickerExpanded, setMapPickerExpanded] = useState(false)
+
+  // Expandir mapa solo en desktop: en móvil colapsar y no mostrar la opción (CSS la oculta)
+  useEffect(() => {
+    const collapseIfMobile = () => {
+      if (typeof window !== 'undefined' && window.innerWidth <= 768) {
+        setMapPickerExpanded(false)
+      }
+    }
+    collapseIfMobile()
+    window.addEventListener('resize', collapseIfMobile)
+    return () => window.removeEventListener('resize', collapseIfMobile)
+  }, [])
 
   // Cerrar modales con Escape (accesibilidad) — después de declarar showMapPicker, locationModalRow, etc.
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return
-      if (showMapPicker) setShowMapPicker(false)
+      if (showMapPicker) {
+        setShowMapPicker(false)
+        setMapPickerExpanded(false)
+      }
       else if (locationModalRow !== null) setLocationModalRow(null)
       else if (editingRow !== null) {
         setEditingRow(null)
@@ -1254,6 +1270,7 @@ export default function Home() {
       setLocationModalRow(null)
       setManualCoords(null)
       setShowLocationWarning(false)
+      setMapPickerExpanded(false)
       setCameFromMobileSearch(false) // No volver a búsqueda después de guardar
     } finally {
       setSavingManualLocation(false)
@@ -2497,7 +2514,7 @@ export default function Home() {
 
   // Opciones para el formulario de nuevo PDV (idénticas al de edición)
   const nuevoPdvOptions = {
-    estadoKiosco: ['Abierto', 'Ahora es Cafeteria', 'Abierto pero otro rubro', 'Cerrado ahora', 'Abre ocasionalmente', 'Cerrado pero hace reparto', 'Cerrado definitivamente', 'Zona Peligrosa', 'No se encuentra el puesto'],
+    estadoKiosco: ['Abierto', 'Ahora es Cafeteria', 'Activo pero otro rubro', 'Cerrado ahora', 'Abre ocasionalmente', 'Cerrado pero hace reparto', 'Cerrado definitivamente', 'Zona Peligrosa', 'No se encuentra el puesto'],
     diasAtencion: ['Todos los dias', 'De L a V', 'Sabado y Domingo', '3 veces por semana', '4 veces por Semana'],
     horario: ['Mañana', 'Mañana y Tarde', 'Tarde', 'Solo reparto/Susc.'],
     escaparate: ['Chico', 'Mediano', 'Grande'],
@@ -3235,7 +3252,7 @@ export default function Home() {
                     const estadoKioscoOptions = [
                       'Abierto',
                       'Ahora es Cafeteria',
-                      'Abierto pero otro rubro',
+                      'Activo pero otro rubro',
                       'Cerrado ahora',
                       'Abre ocasionalmente',
                       'Cerrado pero hace reparto',
@@ -4117,15 +4134,42 @@ export default function Home() {
 
       {/* Modal de Selector de Mapa */}
       {showMapPicker && manualCoords && (
-        <div className="modal-overlay">
-          <div className="modal-content modal-map" onClick={e => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>🗺️ Seleccionar Ubicación</h2>
-              <button className="modal-close" onClick={() => {
-                setShowMapPicker(false)
-                setManualCoords(null)
-                setShowLocationWarning(false)
-              }}>×</button>
+        <div className={`modal-overlay ${mapPickerExpanded ? 'modal-map-expanded-overlay' : ''}`}>
+          <div className={`modal-content modal-map ${mapPickerExpanded ? 'modal-map-expanded' : ''}`} onClick={e => e.stopPropagation()}>
+            <div className="modal-header modal-map-header">
+              <div className="modal-map-header-text">
+                <h2 className="modal-map-title">📍 Seleccionar Ubicación</h2>
+                <p className="modal-map-header-hint">(Busca una dirección aproximada para poder ubicarla con mayor precisión)</p>
+              </div>
+              <div className="modal-header-actions">
+                {mapPickerExpanded ? (
+                  <button
+                    type="button"
+                    className="btn-map-expand-toggle"
+                    onClick={() => setMapPickerExpanded(false)}
+                    title="Desexpandir"
+                    aria-label="Desexpandir"
+                  >
+                    <span className="btn-expand-icon" aria-hidden>⤡</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="btn-map-expand-toggle"
+                    onClick={() => setMapPickerExpanded(true)}
+                    title="Expandir a pantalla completa"
+                    aria-label="Expandir"
+                  >
+                    <span className="btn-expand-icon" aria-hidden>⛶</span>
+                  </button>
+                )}
+                <button className="modal-close" onClick={() => {
+                  setShowMapPicker(false)
+                  setManualCoords(null)
+                  setShowLocationWarning(false)
+                  setMapPickerExpanded(false)
+                }}>×</button>
+              </div>
             </div>
             <div className="modal-body map-body">
               {/* Popup de advertencia para revisar ubicación - OBLIGATORIO */}
@@ -4149,14 +4193,11 @@ export default function Home() {
                 </div>
               )}
               
-              <p className="map-instructions">📍 Busca una dirección o arrastra el marcador en el mapa</p>
-              <p className="map-instructions-hint">(Busca una dirección aproximada para poder ubicarla con mayor precisión)</p>
-              
               {/* Buscador de direcciones */}
               <div className="address-search">
                 <input
                   type="text"
-                  placeholder="Ej: Santa Fe 300, Palermo"
+                  placeholder="Ej: Avenida De Los Constituyentes 3840, CABA"
                   value={addressSearch}
                   onChange={(e) => setAddressSearch(e.target.value)}
                   onKeyDown={(e) => {
@@ -4181,14 +4222,16 @@ export default function Home() {
                   initialLat={manualCoords.lat}
                   initialLng={manualCoords.lng}
                   onCoordsChange={(lat, lng) => setManualCoords({ lat, lng })}
+                  expanded={mapPickerExpanded}
                 />
               </div>
               
-              <p className="map-click-hint">👆 Haz clic en el mapa para establecer la ubicación exacta</p>
-              
-              <div className="coords-display">
-                <span className="coord-label">📍 Coordenadas:</span>
-                <span className="coord-value">{manualCoords.lat.toFixed(6)}, {manualCoords.lng.toFixed(6)}</span>
+              <div className="map-below-row">
+                <p className="map-click-hint">👆 Haz clic en el mapa para establecer la ubicación exacta</p>
+                <div className="coords-display">
+                  <span className="coord-label">📍 Coordenadas:</span>
+                  <span className="coord-value">{manualCoords.lat.toFixed(6)}, {manualCoords.lng.toFixed(6)}</span>
+                </div>
               </div>
               
               {/* Overlay de carga para búsqueda de dirección */}
@@ -4213,8 +4256,18 @@ export default function Home() {
               )}
             </div>
             
-            {/* Botones fuera del modal body - siempre visibles */}
+            {/* Botones fuera del modal body - siempre visibles. En expandido, la fila de coords va aquí para que el mapa use todo el espacio */}
             <div className="map-actions-fixed">
+              {mapPickerExpanded && (
+                <div className="map-below-row map-below-row-in-footer">
+                  <p className="map-click-hint">👆 Haz clic en el mapa para establecer la ubicación exacta</p>
+                  <div className="coords-display">
+                    <span className="coord-label">📍 Coordenadas:</span>
+                    <span className="coord-value">{manualCoords.lat.toFixed(6)}, {manualCoords.lng.toFixed(6)}</span>
+                  </div>
+                </div>
+              )}
+              <div className="map-actions-buttons">
               <button 
                 className="btn-cancel-red"
                 onClick={() => {
@@ -4226,6 +4279,7 @@ export default function Home() {
                     setShowMapPicker(false)
                     setManualCoords(null)
                     setShowLocationWarning(false)
+                    setMapPickerExpanded(false)
                   }
                 }}
                 disabled={savingManualLocation}
@@ -4255,6 +4309,7 @@ export default function Home() {
                   '✓ Aceptar'
                 )}
               </button>
+              </div>
             </div>
           </div>
         </div>

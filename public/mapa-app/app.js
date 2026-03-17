@@ -83,7 +83,7 @@ const ESTILOS_MAPA = {
 const MARKER_COLORS = {
   abierto: '#4CAF50',                 // Verde
   abiertoCafeteria: '#C4A574',        // Marrón claro (Ahora es Cafeteria)
-  abiertoOtroRubro: '#2C1810',         // Marrón negro (Abierto pero otro rubro)
+  abiertoOtroRubro: '#2C1810',         // Marrón negro (Activo pero otro rubro)
   cerrado: '#E31837',                 // Rojo Clarín
   cerradoAhora: '#7B1FA2',            // Morado (Cerrado ahora)
   cerradoReparto: '#E91E8C',          // Rosa (Cerrado pero hace reparto)
@@ -576,7 +576,7 @@ function actualizarTextoDropdown(tipo) {
 }
 
 // Opciones de estado que siempre deben aparecer en el filtro (aunque no haya datos aún)
-const ESTADOS_FIJOS_EN_FILTRO = ['Ahora es Cafeteria', 'Abierto pero otro rubro'];
+const ESTADOS_FIJOS_EN_FILTRO = ['Ahora es Cafeteria', 'Activo pero otro rubro'];
 
 // Llenar checkboxes dinámicos después de cargar lugares
 function llenarFiltrosDinamicos() {
@@ -640,7 +640,7 @@ function llenarGrupoCheckboxes(containerId, valores, tipo, rootElement) {
   if (!container) return;
   
   const iconos = {
-    estado: { 'Abierto': '✅', 'Ahora es Cafeteria': '☕', 'Abierto pero otro rubro': '🏪', 'Cerrado ahora': '🔴', 'Abre ocasionalmente': '🟡', 'Cerrado pero hace reparto': '🛵' },
+    estado: { 'Abierto': '✅', 'Ahora es Cafeteria': '☕', 'Activo pero otro rubro': '🏪', 'Cerrado ahora': '🔴', 'Abre ocasionalmente': '🟡', 'Cerrado pero hace reparto': '🛵' },
     distribuidora: '🚚',
     dias: '📅',
     horario: '🕐',
@@ -829,7 +829,7 @@ function colorParaLugar(lugar) {
   if (estadoLower.includes('cerrado ahora')) return MARKER_COLORS.cerradoAhora;
   if (estadoLower.includes('no se encuentra el puesto')) return MARKER_COLORS.noSeEncuentra;
   if (estadoLower.includes('ahora es cafeteria')) return MARKER_COLORS.abiertoCafeteria;
-  if (estadoLower.includes('abierto pero otro rubro')) return MARKER_COLORS.abiertoOtroRubro;
+  if (estadoLower.includes('activo pero otro rubro') || estadoLower.includes('abierto pero otro rubro')) return MARKER_COLORS.abiertoOtroRubro;
   if (lugar.estaAbierto === true) return MARKER_COLORS.abierto;
   if (lugar.estaAbierto === false) return MARKER_COLORS.cerrado;
   return MARKER_COLORS.desconocido;
@@ -939,29 +939,67 @@ function renderizarMarcadores() {
 }
 
 function crearPopupContent(lugar) {
+  var lugarIdAttr = String(lugar.id || '').replace(/"/g, '&quot;');
   return `
-    <div class="popup-content">
-      <h3>${lugar.nombre || 'Sin nombre'}</h3>
-      <span class="popup-estado ${getEstadoClase(lugar.estaAbierto)}">
-        ${getEstadoTexto(lugar.estado)}
-      </span>
-      
-      ${lugar.direccion ? `<p class="popup-direccion">📍 ${lugar.direccion}</p>` : ''}
-      ${lugar.localidad ? `<p class="popup-localidad">${lugar.localidad}, ${lugar.partido}</p>` : ''}
-      
-      <div class="popup-details">
-        ${lugar.contacto_nombre ? `<p>👤 ${lugar.contacto_nombre}</p>` : ''}
-        ${lugar.telefono ? `<p>📞 <a href="tel:${lugar.telefono}">${lugar.telefono}</a></p>` : ''}
-        ${lugar.email ? `<p>✉️ <a href="mailto:${lugar.email}">${lugar.email}</a></p>` : ''}
-        ${lugar.horario ? `<p>🕐 ${lugar.horario}</p>` : ''}
-        ${lugar.dias_atencion ? `<p>📅 ${lugar.dias_atencion}</p>` : ''}
-        ${lugar.distribuidora ? `<p>🚚 ${lugar.distribuidora}</p>` : ''}
-        ${(lugar.relevado_por || lugar.relevadoPor) ? `<p>📋 Relevado por: ${escapeHtml(lugar.relevado_por || lugar.relevadoPor)}</p>` : ''}
+    <div class="popup-content-wrapper">
+      <button type="button" class="popup-expand-btn" data-lugar-id="${lugarIdAttr}" onclick="expandirPopupMapa(this.getAttribute('data-lugar-id'))" title="Expandir a pantalla completa">⛶</button>
+      <div class="popup-content">
+        <h3>${escapeHtml(lugar.nombre || 'Sin nombre')}</h3>
+        <span class="popup-estado ${getEstadoClase(lugar.estaAbierto)}">
+          ${escapeHtml(getEstadoTexto(lugar.estado))}
+        </span>
+        
+        ${lugar.direccion ? `<p class="popup-direccion">📍 ${escapeHtml(lugar.direccion)}</p>` : ''}
+        ${lugar.localidad ? `<p class="popup-localidad">${escapeHtml(lugar.localidad)}, ${escapeHtml(lugar.partido || '')}</p>` : ''}
+        
+        <div class="popup-details">
+          ${lugar.contacto_nombre ? `<p>👤 ${escapeHtml(lugar.contacto_nombre)}</p>` : ''}
+          ${lugar.telefono ? `<p>📞 <a href="tel:${escapeHtml(lugar.telefono)}">${escapeHtml(lugar.telefono)}</a></p>` : ''}
+          ${lugar.email ? `<p>✉️ <a href="mailto:${escapeHtml(lugar.email)}">${escapeHtml(lugar.email)}</a></p>` : ''}
+          ${lugar.horario ? `<p>🕐 ${escapeHtml(lugar.horario)}</p>` : ''}
+          ${lugar.dias_atencion ? `<p>📅 ${escapeHtml(lugar.dias_atencion)}</p>` : ''}
+          ${lugar.distribuidora ? `<p>🚚 ${escapeHtml(lugar.distribuidora)}</p>` : ''}
+          ${(lugar.relevado_por || lugar.relevadoPor) ? `<p>📋 Relevado por: ${escapeHtml(lugar.relevado_por || lugar.relevadoPor)}</p>` : ''}
+        </div>
+        
+        ${lugar.imagen ? `<img src="${escapeHtml(lugar.imagen)}" class="popup-img" alt="Foto del kiosco" onerror="this.style.display='none'">` : ''}
       </div>
-      
-      ${lugar.imagen ? `<img src="${lugar.imagen}" class="popup-img" alt="Foto del kiosco" onerror="this.style.display='none'">` : ''}
     </div>
   `;
+}
+
+function expandirPopupMapa(lugarId) {
+  var lugar = lugares.find(function (l) { return String(l.id) === String(lugarId); });
+  if (!lugar) return;
+  var contentEl = document.getElementById('popup-expandido-content');
+  var overlay = document.getElementById('popup-expandido-overlay');
+  if (!contentEl || !overlay) return;
+  contentEl.innerHTML = '<div class="popup-content popup-content-expandido">' +
+    '<h3>' + escapeHtml(lugar.nombre || 'Sin nombre') + '</h3>' +
+    '<span class="popup-estado ' + getEstadoClase(lugar.estaAbierto) + '">' + escapeHtml(getEstadoTexto(lugar.estado)) + '</span>' +
+    (lugar.direccion ? '<p class="popup-direccion">📍 ' + escapeHtml(lugar.direccion) + '</p>' : '') +
+    (lugar.localidad ? '<p class="popup-localidad">' + escapeHtml(lugar.localidad) + ', ' + escapeHtml(lugar.partido || '') + '</p>' : '') +
+    '<div class="popup-details">' +
+    (lugar.contacto_nombre ? '<p>👤 ' + escapeHtml(lugar.contacto_nombre) + '</p>' : '') +
+    (lugar.telefono ? '<p>📞 <a href="tel:' + escapeHtml(lugar.telefono) + '">' + escapeHtml(lugar.telefono) + '</a></p>' : '') +
+    (lugar.email ? '<p>✉️ <a href="mailto:' + escapeHtml(lugar.email) + '">' + escapeHtml(lugar.email) + '</a></p>' : '') +
+    (lugar.horario ? '<p>🕐 ' + escapeHtml(lugar.horario) + '</p>' : '') +
+    (lugar.dias_atencion ? '<p>📅 ' + escapeHtml(lugar.dias_atencion) + '</p>' : '') +
+    (lugar.distribuidora ? '<p>🚚 ' + escapeHtml(lugar.distribuidora) + '</p>' : '') +
+    ((lugar.relevado_por || lugar.relevadoPor) ? '<p>📋 Relevado por: ' + escapeHtml(lugar.relevado_por || lugar.relevadoPor) + '</p>' : '') +
+    '</div>' +
+    (lugar.imagen ? '<img src="' + escapeHtml(lugar.imagen) + '" class="popup-img" alt="Foto del kiosco" onerror="this.style.display=\'none\'">' : '') +
+    '</div>';
+  overlay.style.display = 'flex';
+  document.body.classList.add('popup-expandido-abierto');
+}
+
+function cerrarPopupExpandido() {
+  var overlay = document.getElementById('popup-expandido-overlay');
+  if (overlay) {
+    overlay.style.display = 'none';
+    document.body.classList.remove('popup-expandido-abierto');
+  }
 }
 
 function ajustarVistaAMarcadores() {
@@ -2489,6 +2527,8 @@ window.guardarFiltroActual = guardarFiltroActual;
 window.aplicarFiltroGuardado = aplicarFiltroGuardado;
 window.eliminarFiltroGuardado = eliminarFiltroGuardado;
 window.cerrarPopupConfirmacion = cerrarPopupConfirmacion;
+window.expandirPopupMapa = expandirPopupMapa;
+window.cerrarPopupExpandido = cerrarPopupExpandido;
 window.iniciarTour = iniciarTour;
 window.tourSiguiente = tourSiguiente;
 window.tourAnterior = tourAnterior;
